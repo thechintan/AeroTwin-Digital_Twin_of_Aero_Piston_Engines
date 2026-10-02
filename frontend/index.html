@@ -20,6 +20,12 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div id="error-log" style="position:fixed; top:0; left:0; z-index:9999; background:red; color:white; padding:10px;"></div>
+  <script>
+    window.addEventListener('error', function(e) {
+      document.getElementById('error-log').innerHTML += '<br>' + e.message + ' at ' + e.filename + ':' + e.lineno;
+    });
+  </script>
 
   <!-- ════════ SIDEBAR ════════ -->
   <aside class="sidebar" id="sidebar">

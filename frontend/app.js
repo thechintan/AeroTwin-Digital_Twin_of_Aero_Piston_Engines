@@ -534,7 +534,12 @@ class FlightSimulator3D {
   animate() {
     requestAnimationFrame(() => this.animate());
     
-    this.uavGroup.position.set(this.simGx, this.simAlt/7000*150 + 16, 0);
+    // Convert 7000m to actual Y axis positioning. 
+    // Wait! In original code it was alt/7000*150 + 16.
+    // Let's cap the altitude visual representation so it doesn't go off screen
+    // or maybe the camera wasn't tracking properly?
+    const yPos = this.simAlt / 7000 * 150 + 16;
+    this.uavGroup.position.set(this.simGx, yPos, 0);
     this.uavGroup.rotation.x = 0; 
     this.uavGroup.rotation.z = 0; 
     
@@ -572,9 +577,20 @@ class FlightSimulator3D {
 let heroTwin = null, studioTwin = null, fsTwin = null;
 
 function init3D() {
-  if (document.getElementById('overview-3d-canvas')) heroTwin = new MaleUAVDigitalTwin('overview-3d-canvas', false);
-  if (document.getElementById('studio-3d-canvas')) studioTwin = new MaleUAVDigitalTwin('studio-3d-canvas', true);
-  if (document.getElementById('flight-sim-canvas')) fsTwin = new FlightSimulator3D('flight-sim-canvas');
+  document.getElementById('flight-sim-canvas').innerHTML = '<h1 style="color:red; z-index:9999;">init3D started</h1>';
+  if (document.getElementById('overview-3d-canvas')) {
+    try { heroTwin = new MaleUAVDigitalTwin('overview-3d-canvas', false); } catch(e) { document.getElementById('flight-sim-canvas').innerHTML += '<br>heroTwin error: ' + e; }
+  }
+  if (document.getElementById('studio-3d-canvas')) {
+    try { studioTwin = new MaleUAVDigitalTwin('studio-3d-canvas', true); } catch(e) { document.getElementById('flight-sim-canvas').innerHTML += '<br>studioTwin error: ' + e; }
+  }
+  if (document.getElementById('flight-sim-canvas')) {
+    try { 
+      fsTwin = new FlightSimulator3D('flight-sim-canvas'); 
+    } catch(e) { 
+      document.getElementById('flight-sim-canvas').innerHTML += '<br>fsTwin error: ' + e; 
+    }
+  }
 }
 
 function setHero3DMode(m) {
