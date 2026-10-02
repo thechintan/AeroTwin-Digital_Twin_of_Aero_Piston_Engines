@@ -1,0 +1,1 @@
+{"epoch": 12, "total_epochs": 12, "progress_pct": 100.0, "loss": 0.0789, "val_loss": 0.111, "accuracy": 0.9598, "val_accuracy": 0.9451, "status": "Training Complete! Models deployed to GCS Digital Twin core.", "timestamp": 1790759482.874857}

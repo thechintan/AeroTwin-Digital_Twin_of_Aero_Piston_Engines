@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AEROTWIN · DRDO MALE UAV Propulsion Intelligence & Digital Twin System</title>
+  <meta name="description" content="Physics-synchronised Digital Twin for MALE UAV aero piston engines. Real-time fault detection, RUL prediction, and 3D visualization." />
+
+  <!-- Three.js + OrbitControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ════════ SIDEBAR ════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="assets/logo-light-alt.png" class="sidebar-logo logo-light" alt="AeroTwin" id="logo-light" />
+      <img src="assets/logo-dark.png" class="sidebar-logo logo-dark" alt="AeroTwin" id="logo-dark" style="display:none" />
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-page="overview" onclick="switchPage('overview')">
+        <i data-lucide="layout-dashboard" class="nav-icon"></i><span class="nav-label">Overview</span>
+      </button>
+      <button class="nav-item" data-page="twin" onclick="switchPage('twin')">
+        <i data-lucide="plane" class="nav-icon"></i><span class="nav-label">3D Digital Twin</span>
+      </button>
+      <button class="nav-item" data-page="telemetry" onclick="switchPage('telemetry')">
+        <i data-lucide="radio" class="nav-icon"></i><span class="nav-label">Live Telemetry</span>
+      </button>
+      <button class="nav-item" data-page="simulation" onclick="switchPage('simulation')">
+        <i data-lucide="flask-conical" class="nav-icon"></i><span class="nav-label">Mission Simulation</span>
+      </button>
+      <button class="nav-item" data-page="analytics" onclick="switchPage('analytics')">
+        <i data-lucide="bot" class="nav-icon"></i><span class="nav-label">ML Analytics</span>
+      </button>
+      <button class="nav-item" data-page="alerts" onclick="switchPage('alerts')">
+        <i data-lucide="bell" class="nav-icon"></i><span class="nav-label">Fault Alerts</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Theme">
+        <i data-lucide="moon" id="theme-icon"></i>
+        <span id="theme-label">Dark Mode</span>
+      </button>
+      <div class="sidebar-meta">
+        <span class="meta-label">MISSION</span>
+        <span class="meta-val mono" id="sb-mission">MALE-ISR-2026-09</span>
+        <span class="meta-label">TAIL</span>
+        <span class="meta-val mono" id="sb-tail">UAV-MALE-04</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════════ MAIN CONTENT ════════ -->
+  <main class="main-content" id="main-content">
+
+    <!-- ═══════════════════ PAGE: OVERVIEW ═══════════════════ -->
+    <div class="page active" id="page-overview">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Propulsion Health Dashboard</h1>
+          <p class="page-sub">MALE UAV Aero-Piston Engine · Real-Time Digital Twin Intelligence</p>
+        </div>
+        <div class="header-actions">
+          <span class="live-badge" id="live-badge"><span class="live-dot"></span>LIVE</span>
+          <span class="phase-badge mono" id="phase-badge">ISR_LOITER</span>
+        </div>
+      </div>
+
+      <!-- 3D Hero Twin Card -->
+      <div class="hero-twin-container">
+        <div class="hero-twin-header">
+          <div class="hero-title-wrap">
+            <span class="live-pulse"></span>
+            <div>
+              <h3 class="hero-title">Aero Piston Propulsion Digital Twin (Rotax 914 / AE300 Hybrid Core)</h3>
+              <p class="hero-sub">Synchronized 3D Virtual Representation · Subsystem Stress Heatmap · Real-Time CAN Telemetry</p>
+            </div>
+          </div>
+          <div class="hero-controls">
+            <button class="btn btn-sm btn-ghost active" id="hero-btn-exterior" onclick="setHero3DMode('exterior')">UAV Airframe</button>
+            <button class="btn btn-sm btn-ghost" id="hero-btn-engine" onclick="setHero3DMode('engine')">Aero Piston Core</button>
+            <button class="btn btn-sm btn-ghost" id="hero-btn-thermal" onclick="setHero3DMode('thermal')">Thermal</button>
+            <button class="btn btn-sm btn-ghost" id="hero-btn-xray" onclick="setHero3DMode('xray')">X-Ray</button>
+            <button class="btn btn-sm btn-primary" onclick="switchPage('twin')">Full 3D Studio →</button>
+          </div>
+        </div>
+
+        <div class="hero-canvas-wrap" id="overview-3d-canvas">
+          <div class="gcs-hud-overlay">
+            <div class="hud-pill"><span class="h-lbl">RPM</span><span class="h-val mono" id="hud-rpm">4,600</span></div>
+            <div class="hud-pill"><span class="h-lbl">MAP</span><span class="h-val mono" id="hud-map">26.5 inHg</span></div>
+            <div class="hud-pill"><span class="h-lbl">CHT AVG</span><span class="h-val mono" id="hud-cht">195.0 °F</span></div>
+            <div class="hud-pill"><span class="h-lbl">EGT SPREAD</span><span class="h-val mono" id="hud-egt-spread">18.5 °F</span></div>
+            <div class="hud-pill"><span class="h-lbl">OIL PRESS</span><span class="h-val mono" id="hud-oil-p">58.0 PSI</span></div>
+            <div class="hud-pill"><span class="h-lbl">STATUS</span><span class="h-val mono" id="hud-status" style="color:#059669">OPTIMAL</span></div>
+          </div>
+          <div class="v360-hint"><i data-lucide="mouse-pointer-2" style="width:12px;height:12px;margin-bottom:-2px"></i> Drag to Orbit 360° · Scroll to Zoom</div>
+          <div class="view-360-bar">
+            <span class="v360-tag">360° VIEW</span>
+            <button class="v360-btn active" id="hero-v360-orbit" onclick="toggleHeroOrbit()"><i data-lucide="refresh-cw" style="width:12px;height:12px;"></i> Auto-Spin: ON</button>
+            <button class="v360-btn" onclick="setHeroCameraAngle('top')"><i data-lucide="arrow-up" style="width:12px;height:12px;"></i> Top</button>
+            <button class="v360-btn" onclick="setHeroCameraAngle('bottom')"><i data-lucide="arrow-down" style="width:12px;height:12px;"></i> Bottom</button>
+            <button class="v360-btn" onclick="setHeroCameraAngle('front')"><i data-lucide="plane-takeoff" style="width:12px;height:12px;"></i> Front</button>
+            <button class="v360-btn" onclick="setHeroCameraAngle('rear')"><i data-lucide="plane-landing" style="width:12px;height:12px;"></i> Rear</button>
+            <button class="v360-btn" onclick="setHeroCameraAngle('left')"><i data-lucide="arrow-left" style="width:12px;height:12px;"></i> Port</button>
+            <button class="v360-btn" onclick="setHeroCameraAngle('right')"><i data-lucide="arrow-right" style="width:12px;height:12px;"></i> Stbd</button>
+            <button class="v360-btn" onclick="resetHeroCamera()"><i data-lucide="target" style="width:12px;height:12px;"></i> Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-head">
+            <span class="kpi-label">Engine Health Index (EHI)</span>
+            <span class="kpi-tag green">PHYSICS + ML</span>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-big-number green-text" id="kpi-ehi-val">96.5<span class="kpi-unit">%</span></div>
+            <div class="kpi-meta">
+              <div class="meta-row"><span>Status</span><strong class="green-text" id="kpi-ehi-status">OPTIMAL</strong></div>
+              <div class="meta-row"><span>Degradation</span><span class="mono" id="kpi-ehi-deg">0.035</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-head">
+            <span class="kpi-label">Remaining Useful Life (RUL)</span>
+            <span class="kpi-tag blue">ML PREDICTED</span>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-big-number blue-text" id="kpi-rul-val">1,420<span class="kpi-unit">hrs</span></div>
+            <div class="kpi-meta">
+              <div class="meta-row"><span>Confidence</span><span class="mono">R² = 0.91</span></div>
+              <div class="meta-row"><span>RMSE</span><span class="mono">135.9 hrs</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-head">
+            <span class="kpi-label">Fault Classification</span>
+            <span class="kpi-tag green">RandomForest</span>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-big-number green-text" id="kpi-fault-class">NOMINAL</div>
+            <div class="kpi-meta">
+              <div class="meta-row"><span>Accuracy</span><span class="mono" id="kpi-accuracy">93.2%</span></div>
+              <div class="meta-row"><span>Classes</span><span class="mono">7 fault types</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-head">
+            <span class="kpi-label">Anomaly Detection</span>
+            <span class="kpi-tag blue">IsolationForest</span>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-big-number green-text" id="kpi-anomaly">NORMAL</div>
+            <div class="kpi-meta">
+              <div class="meta-row"><span>Score</span><span class="mono" id="kpi-anomaly-score">0.142</span></div>
+              <div class="meta-row"><span>Threshold</span><span class="mono">< 0.0</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Cylinder Head Temperature (CHT) Trends</h3>
+            <p class="chart-sub">Real-time 4-cylinder thermal monitoring</p>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-cht"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">RPM vs Manifold Pressure</h3>
+            <p class="chart-sub">FADEC engine loading & power curve</p>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-rpm-map"></canvas></div>
+        </div>
+      </div>
+    </div><!-- /page-overview -->
+
+    <!-- ═══════════════════ PAGE: 3D DIGITAL TWIN STUDIO ═══════════════════ -->
+    <div class="page" id="page-twin">
+      <div class="twin-studio-grid">
+        <div class="twin-viewport-card">
+          <div class="viewport-toolbar">
+            <div class="btn-group">
+              <button class="btn btn-sm btn-primary active" id="studio-btn-exterior" onclick="setStudioView('exterior')">MALE UAV Airframe</button>
+              <button class="btn btn-sm btn-ghost" id="studio-btn-engine" onclick="setStudioView('engine')">Engine Core</button>
+              <button class="btn btn-sm btn-ghost" id="studio-btn-cutaway" onclick="setStudioView('cutaway')">Cutaway</button>
+              <button class="btn btn-sm btn-ghost" id="studio-btn-thermal" onclick="setStudioView('thermal')">Thermal</button>
+              <button class="btn btn-sm btn-ghost" id="studio-btn-explode" onclick="toggleExplodedEngine()">Exploded</button>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-ghost" id="studio-btn-pins" onclick="toggleStudioPins()">CAN Nodes: ON</button>
+              <button class="btn btn-sm btn-ghost" id="studio-btn-orbit" onclick="toggleStudioOrbit()">Auto-Orbit: ON</button>
+              <button class="btn btn-sm btn-ghost" onclick="resetStudioCamera()">Reset View</button>
+            </div>
+          </div>
+          <div class="studio-canvas" id="studio-3d-canvas">
+            <div class="studio-watermark">
+              <div class="wm-title">DRDO MALE UAV PROPULSION DIGITAL TWIN</div>
+              <div class="wm-sub">4-CYLINDER OPPOSED TURBOCHARGED AERO ENGINE · 100 Hz SYNCHRONIZED</div>
+            </div>
+            <div class="v360-hint"><i data-lucide="mouse-pointer-2" style="width:12px;height:12px;margin-bottom:-2px"></i> Drag to Orbit 360° · Scroll to Zoom</div>
+            <div class="view-360-bar">
+              <span class="v360-tag">360° VIEW</span>
+              <button class="v360-btn active" id="studio-v360-orbit" onclick="toggleStudioOrbit()"><i data-lucide="refresh-cw" style="width:12px;height:12px;"></i> Auto-Spin: ON</button>
+              <button class="v360-btn" onclick="setStudioCameraAngle('iso')"><i data-lucide="compass" style="width:12px;height:12px;"></i> Iso</button>
+              <button class="v360-btn" onclick="setStudioCameraAngle('top')"><i data-lucide="arrow-up" style="width:12px;height:12px;"></i> Top</button>
+              <button class="v360-btn" onclick="setStudioCameraAngle('bottom')"><i data-lucide="arrow-down" style="width:12px;height:12px;"></i> Bottom</button>
+              <button class="v360-btn" onclick="setStudioCameraAngle('front')"><i data-lucide="plane-takeoff" style="width:12px;height:12px;"></i> Front</button>
+              <button class="v360-btn" onclick="setStudioCameraAngle('rear')"><i data-lucide="plane-landing" style="width:12px;height:12px;"></i> Rear</button>
+              <button class="v360-btn" onclick="setStudioCameraAngle('left')"><i data-lucide="arrow-left" style="width:12px;height:12px;"></i> Port</button>
+              <button class="v360-btn" onclick="setStudioCameraAngle('right')"><i data-lucide="arrow-right" style="width:12px;height:12px;"></i> Stbd</button>
+              <button class="v360-btn" onclick="setStudioCameraAngle('engine')"><i data-lucide="search" style="width:12px;height:12px;"></i> Engine</button>
+              <button class="v360-btn" onclick="resetStudioCamera()"><i data-lucide="target" style="width:12px;height:12px;"></i> Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="twin-inspector-card">
+          <div class="inspector-header">
+            <h3 class="card-title">CAN Node & Component Inspector</h3>
+            <p class="card-sub">Select an engine subsystem or click 3D hotspot node</p>
+          </div>
+          <div class="inspector-list">
+            <div class="insp-item active" onclick="focusComponent('cyl_head_2')">
+              <div class="insp-icon"><i data-lucide="flame"></i></div>
+              <div class="insp-details">
+                <div class="insp-name">Cylinder #2 & Spark Lead</div>
+                <div class="insp-stat" id="insp-c2-stat">CHT: 195°F · EGT: 1320°F</div>
+              </div>
+            </div>
+            <div class="insp-item" onclick="focusComponent('crank_bearings')">
+              <div class="insp-icon"><i data-lucide="settings"></i></div>
+              <div class="insp-details">
+                <div class="insp-name">Crankshaft & Main Journal</div>
+                <div class="insp-stat" id="insp-crank-stat">Oil Film: 58 PSI · Vib: 1.62 g</div>
+              </div>
+            </div>
+            <div class="insp-item" onclick="focusComponent('injector_rail')">
+              <div class="insp-icon"><i data-lucide="fuel"></i></div>
+              <div class="insp-details">
+                <div class="insp-name">Fuel Injector Rail</div>
+                <div class="insp-stat" id="insp-inj-stat">Flow: 12.5 GPH · Press: 35 PSI</div>
+              </div>
+            </div>
+            <div class="insp-item" onclick="focusComponent('turbocharger')">
+              <div class="insp-icon"><i data-lucide="wind"></i></div>
+              <div class="insp-details">
+                <div class="insp-name">Turbocharger & Wastegate</div>
+                <div class="insp-stat" id="insp-turbo-stat">MAP: 26.5 inHg · Boost: Nominal</div>
+              </div>
+            </div>
+            <div class="insp-item" onclick="focusComponent('cooling_jacket')">
+              <div class="insp-icon"><i data-lucide="snowflake"></i></div>
+              <div class="insp-details">
+                <div class="insp-name">Liquid Cooling Radiator</div>
+                <div class="insp-stat" id="insp-cool-stat">Coolant: 180°F · Oil: 190°F</div>
+              </div>
+            </div>
+          </div>
+          <div class="insp-detail-pane" id="insp-detail">
+            <div class="insp-detail-title" id="insp-detail-title">Cylinder #2 & Spark Lead (CAN 0x284)</div>
+            <div class="insp-detail-body" id="insp-detail-body">
+              <div class="detail-row"><span>CAN ID</span><span class="mono">0x284 (FADEC_CYL2)</span></div>
+              <div class="detail-row"><span>Sample Rate</span><span class="mono">100 Hz</span></div>
+              <div class="detail-row"><span>Status</span><strong class="green-text">NOMINAL</strong></div>
+              <div class="detail-row"><span>Last Updated</span><span class="mono">Just now</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════ PAGE: LIVE TELEMETRY ═══════════════════ -->
+    <div class="page" id="page-telemetry">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Live Engine Telemetry</h1>
+          <p class="page-sub">Real-time CAN bus sensor data stream · 2-second update interval</p>
+        </div>
+        <div class="header-actions">
+          <span class="live-badge"><span class="live-dot"></span>STREAMING</span>
+        </div>
+      </div>
+
+      <div class="telemetry-grid" id="telemetry-grid">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="charts-row" style="margin-top:20px;">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Vibration Signature Analysis</h3>
+            <p class="chart-sub">Tri-axial accelerometer & RMS envelope</p>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-vibration"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Fuel & Oil Subsystem</h3>
+            <p class="chart-sub">Fuel flow, pressure, oil pressure & temperature</p>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-fuel-oil"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════ PAGE: MISSION SIMULATION ═══════════════════ -->
+    <div class="page" id="page-simulation">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Mission Simulation & Replay</h1>
+          <p class="page-sub">Simulate engine behavior under different mission profiles & environmental conditions</p>
+        </div>
+      </div>
+
+      <div class="sim-controls-grid">
+        <div class="sim-control-card">
+          <h3 class="card-title">Environment Preset</h3>
+          <select class="sim-select" id="sim-env-select">
+            <option value="STANDARD_ISA">Standard ISA (15°C SL)</option>
+            <option value="HOT_DESERT_48C">Hot Desert (48°C)</option>
+            <option value="HIGH_ALTITUDE_25K">High Altitude (25,000 ft)</option>
+            <option value="COLD_ARCTIC">Cold Arctic (-25°C)</option>
+            <option value="TROPICAL_MARITIME">Tropical Maritime (37°C)</option>
+          </select>
+        </div>
+        <div class="sim-control-card">
+          <h3 class="card-title">Fault Injection</h3>
+          <select class="sim-select" id="sim-fault-select">
+            <option value="NOMINAL">NOMINAL (No Fault)</option>
+            <option value="CYLINDER_MISFIRE">Cylinder Misfire</option>
+            <option value="INJECTOR_CLOGGING">Injector Clogging</option>
+            <option value="COOLING_DEGRADATION">Cooling Degradation</option>
+            <option value="LUBRICATION_FAILURE">Lubrication Failure</option>
+            <option value="SENSOR_DRIFT">Sensor Drift</option>
+            <option value="COMBUSTION_INSTABILITY">Combustion Instability</option>
+          </select>
+        </div>
+        <div class="sim-control-card sim-actions">
+          <button class="btn btn-primary btn-lg" id="sim-start-btn" onclick="startSimulation()"><i data-lucide="play" style="width:16px;height:16px;"></i> Start Mission</button>
+          <button class="btn btn-ghost btn-lg" id="sim-stop-btn" onclick="stopSimulation()"><i data-lucide="square" style="width:16px;height:16px;"></i> Stop</button>
+        </div>
+      </div>
+
+      <div class="sim-status-bar" id="sim-status-bar">
+        <div class="sim-stat"><span class="sim-stat-label">Status</span><span class="sim-stat-val mono" id="sim-status-val">IDLE</span></div>
+        <div class="sim-stat"><span class="sim-stat-label">Phase</span><span class="sim-stat-val mono" id="sim-phase-val">—</span></div>
+        <div class="sim-stat"><span class="sim-stat-label">Mission Time</span><span class="sim-stat-val mono" id="sim-time-val">00:00:00</span></div>
+        <div class="sim-stat"><span class="sim-stat-label">Cycle</span><span class="sim-stat-val mono" id="sim-cycle-val">0</span></div>
+        <div class="sim-stat"><span class="sim-stat-label">Fault</span><span class="sim-stat-val mono" id="sim-fault-val">NOMINAL</span></div>
+        <div class="sim-stat"><span class="sim-stat-label">Environment</span><span class="sim-stat-val mono" id="sim-env-val">STANDARD_ISA</span></div>
+      </div>
+
+      <div class="sim-live-panel">
+        <div class="sim-live-card" id="sim-live-sensor">
+          <h3 class="card-title">Live Sensor Stream</h3>
+          <div class="telemetry-mini-grid" id="sim-sensor-grid">
+            <div class="tel-mini"><span class="tel-label">RPM</span><span class="tel-val mono" id="sim-rpm">—</span></div>
+            <div class="tel-mini"><span class="tel-label">CHT Avg</span><span class="tel-val mono" id="sim-cht">—</span></div>
+            <div class="tel-mini"><span class="tel-label">EGT Spread</span><span class="tel-val mono" id="sim-egt">—</span></div>
+            <div class="tel-mini"><span class="tel-label">Oil Press</span><span class="tel-val mono" id="sim-oil">—</span></div>
+            <div class="tel-mini"><span class="tel-label">Fuel Flow</span><span class="tel-val mono" id="sim-fuel">—</span></div>
+            <div class="tel-mini"><span class="tel-label">Vib RMS</span><span class="tel-val mono" id="sim-vib">—</span></div>
+            <div class="tel-mini"><span class="tel-label">Coolant</span><span class="tel-val mono" id="sim-cool">—</span></div>
+            <div class="tel-mini"><span class="tel-label">Battery</span><span class="tel-val mono" id="sim-batt">—</span></div>
+          </div>
+        </div>
+        <div class="sim-live-card">
+          <h3 class="card-title">ML Prediction</h3>
+          <div class="telemetry-mini-grid">
+            <div class="tel-mini"><span class="tel-label">Fault Class</span><span class="tel-val mono" id="sim-pred-fault">—</span></div>
+            <div class="tel-mini"><span class="tel-label">EHI</span><span class="tel-val mono" id="sim-pred-ehi">—</span></div>
+            <div class="tel-mini"><span class="tel-label">RUL</span><span class="tel-val mono" id="sim-pred-rul">—</span></div>
+            <div class="tel-mini"><span class="tel-label">Anomaly</span><span class="tel-val mono" id="sim-pred-anomaly">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-row" style="margin-top:20px;">
+        <div class="chart-card" style="flex:1;">
+          <div class="chart-header">
+            <h3 class="chart-title">Mission Timeline — Sensor Trends</h3>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-sim-timeline"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════ PAGE: ML ANALYTICS ═══════════════════ -->
+    <div class="page" id="page-analytics">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">AI/ML Analytics & Model Performance</h1>
+          <p class="page-sub">RandomForest fault classifier · GBR RUL regressor · IsolationForest anomaly detector</p>
+        </div>
+      </div>
+
+      <div class="ml-kpi-row">
+        <div class="ml-kpi"><span class="ml-kpi-label">Accuracy</span><span class="ml-kpi-val mono" id="ml-accuracy">93.2%</span></div>
+        <div class="ml-kpi"><span class="ml-kpi-label">RUL R²</span><span class="ml-kpi-val mono" id="ml-r2">0.909</span></div>
+        <div class="ml-kpi"><span class="ml-kpi-label">RMSE</span><span class="ml-kpi-val mono" id="ml-rmse">135.9 hrs</span></div>
+        <div class="ml-kpi"><span class="ml-kpi-label">Dataset</span><span class="ml-kpi-val mono" id="ml-dataset">3,000 samples</span></div>
+        <div class="ml-kpi"><span class="ml-kpi-label">Features</span><span class="ml-kpi-val mono" id="ml-features">26</span></div>
+        <div class="ml-kpi"><span class="ml-kpi-label">Classes</span><span class="ml-kpi-val mono">7 fault types</span></div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Training Loss & Accuracy Curves</h3>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-training"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Feature Importance Ranking</h3>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-features"></canvas></div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card" style="flex:1;">
+          <div class="chart-header">
+            <h3 class="chart-title">Confusion Matrix (7-Class Fault Classifier)</h3>
+          </div>
+          <div class="confusion-matrix-wrap" id="confusion-matrix"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════ PAGE: FAULT ALERTS ═══════════════════ -->
+    <div class="page" id="page-alerts">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Fault Alerts & Maintenance Advisory</h1>
+          <p class="page-sub">Predictive maintenance recommendations · Historical alert log</p>
+        </div>
+      </div>
+
+      <div class="alerts-list" id="alerts-list">
+        <div class="alert-item alert-info">
+          <div class="alert-icon"><i data-lucide="info"></i></div>
+          <div class="alert-content">
+            <div class="alert-title">System Initialized</div>
+            <div class="alert-msg">AEROTWIN propulsion intelligence system online. All subsystems nominal.</div>
+            <div class="alert-time mono">Just now</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="advisory-section">
+        <h3 class="card-title">Maintenance Advisory</h3>
+        <div class="advisory-grid" id="advisory-grid">
+          <div class="advisory-card">
+            <div class="adv-icon"><i data-lucide="wrench"></i></div>
+            <div class="adv-title">Next Scheduled Inspection</div>
+            <div class="adv-val mono">In 420 flight hours</div>
+          </div>
+          <div class="advisory-card">
+            <div class="adv-icon"><i data-lucide="droplet"></i></div>
+            <div class="adv-title">Oil Change Due</div>
+            <div class="adv-val mono">In 180 flight hours</div>
+          </div>
+          <div class="advisory-card">
+            <div class="adv-icon"><i data-lucide="zap"></i></div>
+            <div class="adv-title">Spark Plug Replacement</div>
+            <div class="adv-val mono">In 300 flight hours</div>
+          </div>
+          <div class="advisory-card">
+            <div class="adv-icon"><i data-lucide="thermometer"></i></div>
+            <div class="adv-title">Coolant Flush</div>
+            <div class="adv-val mono">In 600 flight hours</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

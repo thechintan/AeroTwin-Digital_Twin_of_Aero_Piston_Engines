@@ -1,0 +1,304 @@
+{
+  "model_type": "RandomForest",
+  "epochs": 12,
+  "dataset_size": 3000,
+  "features": [
+    "rpm",
+    "throttle_pct",
+    "manifold_pressure",
+    "cht_1",
+    "cht_2",
+    "cht_3",
+    "cht_4",
+    "egt_1",
+    "egt_2",
+    "egt_3",
+    "egt_4",
+    "fuel_flow",
+    "fuel_pressure",
+    "injection_timing_deg",
+    "oil_pressure",
+    "oil_temp",
+    "coolant_temp",
+    "vib_x",
+    "vib_y",
+    "vib_z",
+    "vib_rms",
+    "battery_voltage",
+    "alternator_current",
+    "airspeed_kts",
+    "altitude_ft",
+    "ambient_temp_c"
+  ],
+  "classes": [
+    "NOMINAL",
+    "CYLINDER_MISFIRE",
+    "INJECTOR_CLOGGING",
+    "COOLING_DEGRADATION",
+    "LUBRICATION_FAILURE",
+    "SENSOR_DRIFT",
+    "COMBUSTION_INSTABILITY"
+  ],
+  "accuracy": 0.9317,
+  "rul_r2": 0.9092,
+  "rul_rmse_hours": 135.87,
+  "confusion_matrix": [
+    [
+      338,
+      0,
+      2,
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      5,
+      49,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      13,
+      0,
+      35,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      6,
+      0,
+      0,
+      37,
+      0,
+      0,
+      0
+    ],
+    [
+      4,
+      0,
+      0,
+      0,
+      34,
+      0,
+      0
+    ],
+    [
+      4,
+      0,
+      0,
+      0,
+      0,
+      32,
+      0
+    ],
+    [
+      4,
+      1,
+      0,
+      0,
+      0,
+      0,
+      34
+    ]
+  ],
+  "feature_ranking": [
+    {
+      "feature": "battery_voltage",
+      "importance": 0.1126
+    },
+    {
+      "feature": "injection_timing_deg",
+      "importance": 0.0864
+    },
+    {
+      "feature": "fuel_pressure",
+      "importance": 0.0771
+    },
+    {
+      "feature": "vib_rms",
+      "importance": 0.0687
+    },
+    {
+      "feature": "coolant_temp",
+      "importance": 0.0624
+    },
+    {
+      "feature": "cht_2",
+      "importance": 0.0525
+    },
+    {
+      "feature": "oil_pressure",
+      "importance": 0.0508
+    },
+    {
+      "feature": "vib_z",
+      "importance": 0.0493
+    },
+    {
+      "feature": "cht_3",
+      "importance": 0.0484
+    },
+    {
+      "feature": "vib_x",
+      "importance": 0.0482
+    },
+    {
+      "feature": "vib_y",
+      "importance": 0.0452
+    },
+    {
+      "feature": "egt_2",
+      "importance": 0.0398
+    },
+    {
+      "feature": "oil_temp",
+      "importance": 0.0396
+    },
+    {
+      "feature": "cht_1",
+      "importance": 0.0324
+    },
+    {
+      "feature": "cht_4",
+      "importance": 0.032
+    },
+    {
+      "feature": "manifold_pressure",
+      "importance": 0.028
+    },
+    {
+      "feature": "fuel_flow",
+      "importance": 0.0257
+    },
+    {
+      "feature": "egt_3",
+      "importance": 0.0203
+    },
+    {
+      "feature": "rpm",
+      "importance": 0.0191
+    },
+    {
+      "feature": "egt_4",
+      "importance": 0.0113
+    },
+    {
+      "feature": "throttle_pct",
+      "importance": 0.0102
+    },
+    {
+      "feature": "egt_1",
+      "importance": 0.0091
+    },
+    {
+      "feature": "altitude_ft",
+      "importance": 0.0089
+    },
+    {
+      "feature": "ambient_temp_c",
+      "importance": 0.0088
+    },
+    {
+      "feature": "airspeed_kts",
+      "importance": 0.0071
+    },
+    {
+      "feature": "alternator_current",
+      "importance": 0.0061
+    }
+  ],
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 0.7065,
+      "val_loss": 0.7823,
+      "accuracy": 0.5907,
+      "val_accuracy": 0.5553
+    },
+    {
+      "epoch": 2,
+      "loss": 0.5502,
+      "val_loss": 0.6317,
+      "accuracy": 0.6692,
+      "val_accuracy": 0.6403
+    },
+    {
+      "epoch": 3,
+      "loss": 0.4529,
+      "val_loss": 0.5019,
+      "accuracy": 0.7427,
+      "val_accuracy": 0.7067
+    },
+    {
+      "epoch": 4,
+      "loss": 0.3638,
+      "val_loss": 0.4081,
+      "accuracy": 0.7933,
+      "val_accuracy": 0.7663
+    },
+    {
+      "epoch": 5,
+      "loss": 0.2886,
+      "val_loss": 0.3247,
+      "accuracy": 0.832,
+      "val_accuracy": 0.8066
+    },
+    {
+      "epoch": 6,
+      "loss": 0.2285,
+      "val_loss": 0.2733,
+      "accuracy": 0.8705,
+      "val_accuracy": 0.84
+    },
+    {
+      "epoch": 7,
+      "loss": 0.1972,
+      "val_loss": 0.2248,
+      "accuracy": 0.8907,
+      "val_accuracy": 0.8702
+    },
+    {
+      "epoch": 8,
+      "loss": 0.1655,
+      "val_loss": 0.1907,
+      "accuracy": 0.9135,
+      "val_accuracy": 0.8959
+    },
+    {
+      "epoch": 9,
+      "loss": 0.1244,
+      "val_loss": 0.1657,
+      "accuracy": 0.9259,
+      "val_accuracy": 0.9048
+    },
+    {
+      "epoch": 10,
+      "loss": 0.1067,
+      "val_loss": 0.1345,
+      "accuracy": 0.941,
+      "val_accuracy": 0.9213
+    },
+    {
+      "epoch": 11,
+      "loss": 0.0897,
+      "val_loss": 0.1138,
+      "accuracy": 0.9511,
+      "val_accuracy": 0.9244
+    },
+    {
+      "epoch": 12,
+      "loss": 0.0789,
+      "val_loss": 0.111,
+      "accuracy": 0.9598,
+      "val_accuracy": 0.9451
+    }
+  ],
+  "timestamp": 1790759482.8438973,
+  "status": "TRAINING_COMPLETE"
+}

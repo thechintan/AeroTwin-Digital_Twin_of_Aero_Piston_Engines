@@ -1,0 +1,789 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   AEROTWIN · DRDO MALE UAV PROPULSION DIGITAL TWIN
+   Complete Frontend Application (3D Twin + Charts + Simulation + ML)
+══════════════════════════════════════════════════════════════════════════ */
+
+const API = 'http://localhost:3001/api';
+const state = {
+  currentPage: 'overview',
+  simRunning: false,
+  simPollInterval: null,
+  telemetryPollInterval: null,
+  charts: {},
+  chartData: { cht: [], rpm: [], map: [], vib: [], fuelFlow: [], oilPress: [] },
+  alerts: [],
+  activeComponent: 'cyl_head_2'
+};
+
+// ══════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════════
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = document.getElementById(`page-${page}`);
+  if (el) el.classList.add('active');
+  const nav = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (nav) nav.classList.add('active');
+  state.currentPage = page;
+
+  if (page === 'analytics') loadMLMetrics();
+  if (page === 'telemetry') startTelemetryPolling();
+  else stopTelemetryPolling();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// THEME TOGGLE
+// ══════════════════════════════════════════════════════════════════
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('theme-icon').setAttribute('data-lucide', isDark ? 'moon' : 'sun');
+  if (window.lucide) window.lucide.createIcons();
+  document.getElementById('theme-label').textContent = isDark ? 'Dark Mode' : 'Light Mode';
+  localStorage.setItem('aerotwin-theme', isDark ? 'light' : 'dark');
+
+  // Update chart colors
+  Object.values(state.charts).forEach(c => {
+    if (c && c.options) {
+      const txtColor = isDark ? '#475569' : '#94a3b8';
+      const gridColor = isDark ? '#e2e8f0' : '#2d3a4d';
+      if (c.options.scales?.x) { c.options.scales.x.ticks.color = txtColor; c.options.scales.x.grid.color = gridColor; }
+      if (c.options.scales?.y) { c.options.scales.y.ticks.color = txtColor; c.options.scales.y.grid.color = gridColor; }
+      c.update('none');
+    }
+  });
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('aerotwin-theme');
+  if (saved === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
+    document.getElementById('theme-label').textContent = 'Light Mode';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 3D MALE UAV DIGITAL TWIN (Three.js 360° Engine)
+// ══════════════════════════════════════════════════════════════════
+class MaleUAVDigitalTwin {
+  constructor(containerId, isStudio = false) {
+    this.container = document.getElementById(containerId);
+    if (!this.container) return;
+    this.isStudio = isStudio;
+    this.viewMode = 'exterior';
+    this.exploded = false;
+    this.autoRotate = true;
+    this.showPins = true;
+    this.parts = {};
+    this.hotspots = {};
+    this.particles = null;
+    this.init();
+  }
+
+  init() {
+    const w = this.container.clientWidth || 800;
+    const h = this.container.clientHeight || 400;
+
+    this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0x0a1424, 0.010);
+    this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+    this.camera.position.set(11, 7, 13);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setSize(w, h);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.container.appendChild(this.renderer.domElement);
+
+    if (typeof THREE.OrbitControls !== 'undefined') {
+      this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+      this.controls.enableDamping = true;
+      this.controls.dampingFactor = 0.06;
+      this.controls.minDistance = 2.0;
+      this.controls.maxDistance = 55.0;
+      this.controls.minPolarAngle = 0.001;
+      this.controls.maxPolarAngle = Math.PI - 0.001;
+      this.controls.autoRotate = this.autoRotate;
+      this.controls.autoRotateSpeed = 2.0;
+      this.controls.target.set(0, 0, 0);
+    }
+
+    // 360° Omni-directional Lighting
+    this.scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+    const dirTop = new THREE.DirectionalLight(0x38bdf8, 1.3); dirTop.position.set(12, 18, 10); this.scene.add(dirTop);
+    const dirRear = new THREE.DirectionalLight(0x2563eb, 1.0); dirRear.position.set(-12, 4, -12); this.scene.add(dirRear);
+    const dirBottom = new THREE.DirectionalLight(0x60a5fa, 0.9); dirBottom.position.set(0, -15, 2); this.scene.add(dirBottom);
+    const dirFront = new THREE.DirectionalLight(0xffffff, 0.7); dirFront.position.set(0, 3, 15); this.scene.add(dirFront);
+
+    const grid = new THREE.GridHelper(26, 26, 0x38bdf8, 0x1e293b); grid.position.y = -3.2; this.scene.add(grid);
+
+    this.build3DModel();
+    this.buildHotspots();
+    this.buildStreamlines();
+    window.addEventListener('resize', () => this.onResize());
+    this.animate();
+  }
+
+  build3DModel() {
+    this.rootGroup = new THREE.Group();
+    this.uavGroup = new THREE.Group();
+    const matAirframe = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.28, metalness: 0.45 });
+    const matRadome = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.2 });
+    const matPod = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.15, metalness: 0.8 });
+
+    // Fuselage
+    const fuseGeo = new THREE.CylinderGeometry(0.75, 0.9, 8.5, 32); fuseGeo.rotateX(Math.PI / 2);
+    this.parts.fuselage = new THREE.Mesh(fuseGeo, matAirframe); this.uavGroup.add(this.parts.fuselage);
+
+    // Nose
+    const noseGeo = new THREE.SphereGeometry(0.78, 24, 24); noseGeo.scale(0.9, 0.85, 2.0);
+    this.parts.nose = new THREE.Mesh(noseGeo, matRadome); this.parts.nose.position.set(0, 0.25, 4.2); this.uavGroup.add(this.parts.nose);
+
+    // Pitot probe
+    const pitotGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.2, 12); pitotGeo.rotateX(Math.PI / 2);
+    const pitot = new THREE.Mesh(pitotGeo, new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7 }));
+    pitot.position.set(0, 0.25, 6.4); this.uavGroup.add(pitot);
+
+    // Gimbal pod
+    const gimbal = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 20), matPod);
+    gimbal.position.set(0, -0.75, 2.8); this.uavGroup.add(gimbal);
+
+    // SATCOM fairing
+    const satGeo = new THREE.CylinderGeometry(0.35, 0.45, 2.8, 16); satGeo.rotateX(Math.PI / 2); satGeo.scale(1, 0.5, 1);
+    const satcom = new THREE.Mesh(satGeo, matAirframe); satcom.position.set(0, 0.85, 1.8); this.uavGroup.add(satcom);
+
+    // Wings
+    this.parts.wings = new THREE.Mesh(new THREE.BoxGeometry(16.4, 0.12, 1.6), matAirframe);
+    this.parts.wings.position.set(0, 0.3, 0.5); this.uavGroup.add(this.parts.wings);
+
+    // Winglets
+    const wlGeo = new THREE.BoxGeometry(0.1, 1.1, 0.9);
+    const wlL = new THREE.Mesh(wlGeo, matAirframe); wlL.position.set(-8.2, 0.7, 0.5); wlL.rotation.z = -0.3; this.uavGroup.add(wlL);
+    const wlR = new THREE.Mesh(wlGeo, matAirframe); wlR.position.set(8.2, 0.7, 0.5); wlR.rotation.z = 0.3; this.uavGroup.add(wlR);
+
+    // V-Tail
+    const tailGeo = new THREE.BoxGeometry(0.12, 2.6, 1.2);
+    this.parts.tail_l = new THREE.Mesh(tailGeo, matAirframe); this.parts.tail_l.position.set(-1.2, -0.7, -4.2); this.parts.tail_l.rotation.z = 0.45; this.uavGroup.add(this.parts.tail_l);
+    this.parts.tail_r = new THREE.Mesh(tailGeo, matAirframe); this.parts.tail_r.position.set(1.2, -0.7, -4.2); this.parts.tail_r.rotation.z = -0.45; this.uavGroup.add(this.parts.tail_r);
+
+    this.rootGroup.add(this.uavGroup);
+
+    // ENGINE
+    this.engineGroup = new THREE.Group(); this.engineGroup.position.set(0, 0.1, -2.5);
+    const matCrank = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.85, roughness: 0.25 });
+    const matCyl = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.65, roughness: 0.35 });
+    const matTurbo = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.9, roughness: 0.2 });
+    const matExh = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.4 });
+
+    this.parts.crankcase = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.4, 2.4), matCrank); this.engineGroup.add(this.parts.crankcase);
+
+    // Oil sump
+    this.engineGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 1.8), new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 })).translateY(-0.85));
+
+    const cylGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.3, 16); cylGeo.rotateZ(Math.PI / 2);
+    this.parts.cyl_1 = new THREE.Mesh(cylGeo, matCyl.clone()); this.parts.cyl_1.position.set(-1.4, 0.15, 0.6); this.engineGroup.add(this.parts.cyl_1);
+    this.parts.cyl_2 = new THREE.Mesh(cylGeo, matCyl.clone()); this.parts.cyl_2.position.set(1.4, 0.15, 0.6); this.engineGroup.add(this.parts.cyl_2);
+    this.parts.cyl_3 = new THREE.Mesh(cylGeo, matCyl.clone()); this.parts.cyl_3.position.set(-1.4, -0.15, -0.6); this.engineGroup.add(this.parts.cyl_3);
+    this.parts.cyl_4 = new THREE.Mesh(cylGeo, matCyl.clone()); this.parts.cyl_4.position.set(1.4, -0.15, -0.6); this.engineGroup.add(this.parts.cyl_4);
+
+    // Turbo
+    const tGeo = new THREE.TorusGeometry(0.38, 0.18, 16, 24); tGeo.rotateX(Math.PI / 2);
+    const turbo = new THREE.Mesh(tGeo, matTurbo); turbo.position.set(0, -0.6, -0.8); this.engineGroup.add(turbo);
+
+    // Exhaust pipes
+    const pGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.6, 12); pGeo.rotateZ(Math.PI / 3);
+    const exhL = new THREE.Mesh(pGeo, matExh); exhL.position.set(-0.9, -0.4, 0); this.engineGroup.add(exhL);
+    const exhR = new THREE.Mesh(pGeo, matExh); exhR.position.set(0.9, -0.4, 0); exhR.rotation.z = -Math.PI / 3; this.engineGroup.add(exhR);
+
+    // Prop
+    const hubGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.6, 20); hubGeo.rotateX(Math.PI / 2);
+    this.parts.propHub = new THREE.Mesh(hubGeo, matRadome); this.parts.propHub.position.set(0, 0, -2.0);
+    this.parts.propBladesGroup = new THREE.Group();
+    const blGeo = new THREE.BoxGeometry(0.18, 2.2, 0.05);
+    const blMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 });
+    const b1 = new THREE.Mesh(blGeo, blMat); b1.position.y = 1.1; this.parts.propBladesGroup.add(b1);
+    const b2 = new THREE.Mesh(blGeo, blMat); b2.position.set(-0.95, -0.55, 0); b2.rotation.z = (2 * Math.PI) / 3; this.parts.propBladesGroup.add(b2);
+    const b3 = new THREE.Mesh(blGeo, blMat); b3.position.set(0.95, -0.55, 0); b3.rotation.z = -(2 * Math.PI) / 3; this.parts.propBladesGroup.add(b3);
+    this.parts.propHub.add(this.parts.propBladesGroup);
+    this.engineGroup.add(this.parts.propHub);
+    this.rootGroup.add(this.engineGroup);
+    this.scene.add(this.rootGroup);
+  }
+
+  buildHotspots() {
+    this.hotspotGroup = new THREE.Group();
+    const defs = [
+      { id: 'cyl_head_2', pos: [1.8, 0.3, -1.9] }, { id: 'crank_bearings', pos: [0, 0.1, -2.5] },
+      { id: 'injector_rail', pos: [-1.4, 0.7, -2.2] }, { id: 'turbocharger', pos: [0, -0.7, -3.3] },
+      { id: 'cooling_jacket', pos: [0, 0.8, -3.2] }
+    ];
+    defs.forEach(d => {
+      const pin = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+      pin.position.set(...d.pos);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.24, 0.32, 20), new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide }));
+      ring.rotation.x = Math.PI / 2; pin.add(ring);
+      this.hotspots[d.id] = { pin, ring }; this.hotspotGroup.add(pin);
+    });
+    this.scene.add(this.hotspotGroup);
+  }
+
+  buildStreamlines() {
+    const count = 140, pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) { pos[i*3] = (Math.random()-0.5)*18; pos[i*3+1] = (Math.random()-0.5)*4; pos[i*3+2] = (Math.random()-0.5)*16; }
+    const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.particles = new THREE.Points(geom, new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.09, transparent: true, opacity: 0.65 }));
+    this.scene.add(this.particles);
+  }
+
+  setMode(mode) {
+    this.viewMode = mode;
+    this.uavGroup.visible = true;
+    this.parts.fuselage.material.wireframe = false;
+    this.parts.fuselage.material.opacity = 1.0;
+    this.parts.fuselage.material.transparent = false;
+    this.parts.fuselage.material.color.setHex(0xe2e8f0);
+    [this.parts.cyl_1, this.parts.cyl_2, this.parts.cyl_3, this.parts.cyl_4].forEach(c => c.material.color.setHex(0x1e293b));
+
+    if (mode === 'engine') { this.uavGroup.visible = false; }
+    else if (mode === 'cutaway' || mode === 'xray') { this.parts.fuselage.material.wireframe = true; this.parts.fuselage.material.color.setHex(0x38bdf8); }
+    else if (mode === 'thermal') {
+      this.uavGroup.visible = false;
+      this.parts.cyl_1.material.color.setHex(0xd97706); this.parts.cyl_2.material.color.setHex(0xdc2626);
+      this.parts.cyl_3.material.color.setHex(0xd97706); this.parts.cyl_4.material.color.setHex(0xd97706);
+    }
+  }
+
+  updateFromTelemetry(s, p) {
+    if (!s || !p) return;
+    const f = p.fault_class || 'NOMINAL';
+    if (this.viewMode !== 'thermal') {
+      [this.parts.cyl_1, this.parts.cyl_2, this.parts.cyl_3, this.parts.cyl_4].forEach(c => c.material.color.setHex(0x1e293b));
+      this.parts.crankcase.material.color.setHex(0x475569);
+      if (f === 'CYLINDER_MISFIRE') this.parts.cyl_2.material.color.setHex(0xdc2626);
+      else if (f === 'INJECTOR_CLOGGING') this.parts.cyl_3.material.color.setHex(0xd97706);
+      else if (f === 'COOLING_DEGRADATION') [this.parts.cyl_1, this.parts.cyl_2, this.parts.cyl_3, this.parts.cyl_4].forEach(c => c.material.color.setHex(0xdc2626));
+      else if (f === 'LUBRICATION_FAILURE') this.parts.crankcase.material.color.setHex(0xdc2626);
+    }
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('hud-rpm', Math.round(s.rpm).toLocaleString());
+    set('hud-map', (s.manifold_pressure || 0).toFixed(1) + ' inHg');
+    set('hud-cht', (s.cht_avg || 0).toFixed(1) + ' °F');
+    set('hud-egt-spread', (s.egt_spread || 0).toFixed(1) + ' °F');
+    set('hud-oil-p', (s.oil_pressure || 0).toFixed(1) + ' PSI');
+    const hs = document.getElementById('hud-status');
+    if (hs) { hs.textContent = f === 'NOMINAL' ? 'OPTIMAL' : f; hs.style.color = f === 'NOMINAL' ? '#059669' : '#dc2626'; }
+  }
+
+  setCameraAngle(preset) {
+    if (!this.controls) return;
+    const targets = {
+      iso: { pos: [11,7,13], target: [0,0,0] }, top: { pos: [0,20,0.001], target: [0,0,0] },
+      bottom: { pos: [0,-18,0.001], target: [0,0,0] }, front: { pos: [0,0.6,14], target: [0,0.2,0] },
+      rear: { pos: [0,1.2,-14], target: [0,0.2,-1.5] }, left: { pos: [-18,1.2,0], target: [0,0,0] },
+      right: { pos: [18,1.2,0], target: [0,0,0] }, engine: { pos: [3.4,2.4,-2.2], target: [0,0.2,-2.5] }
+    };
+    const dest = targets[preset] || targets.iso;
+    const sP = this.camera.position.clone(), eP = new THREE.Vector3(...dest.pos);
+    const sT = this.controls.target.clone(), eT = new THREE.Vector3(...dest.target);
+    const dur = 650, start = performance.now();
+    const anim = (now) => {
+      const p = Math.min((now - start) / dur, 1.0);
+      const ease = p < 0.5 ? 2*p*p : -1+(4-2*p)*p;
+      this.camera.position.lerpVectors(sP, eP, ease);
+      this.controls.target.lerpVectors(sT, eT, ease);
+      this.controls.update();
+      if (p < 1.0) requestAnimationFrame(anim);
+    };
+    requestAnimationFrame(anim);
+  }
+
+  toggleAutoRotate() {
+    this.autoRotate = !this.autoRotate;
+    if (this.controls) this.controls.autoRotate = this.autoRotate;
+    return this.autoRotate;
+  }
+
+  animate() {
+    requestAnimationFrame(() => this.animate());
+    const t = Date.now() * 0.001;
+    if (this.parts.propBladesGroup) this.parts.propBladesGroup.rotation.z += 0.38;
+    if (this.particles) {
+      const arr = this.particles.geometry.attributes.position.array;
+      for (let i = 0; i < arr.length; i += 3) { arr[i+2] -= 0.22; if (arr[i+2] < -8) arr[i+2] = 8; }
+      this.particles.geometry.attributes.position.needsUpdate = true;
+    }
+    Object.values(this.hotspots).forEach(({ ring }) => { const s = 1.0 + Math.sin(t*5)*0.2; ring.scale.set(s,s,s); });
+    if (this.exploded && this.parts.cyl_1) {
+      this.parts.cyl_1.position.x = -2.2; this.parts.cyl_2.position.x = 2.2; this.parts.cyl_3.position.x = -2.2; this.parts.cyl_4.position.x = 2.2;
+    } else if (this.parts.cyl_1) {
+      this.parts.cyl_1.position.x = -1.4; this.parts.cyl_2.position.x = 1.4; this.parts.cyl_3.position.x = -1.4; this.parts.cyl_4.position.x = 1.4;
+    }
+    if (this.controls) this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  onResize() {
+    if (!this.container) return;
+    const w = this.container.clientWidth, h = this.container.clientHeight;
+    this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h);
+  }
+}
+
+let heroTwin = null, studioTwin = null;
+
+function init3D() {
+  if (document.getElementById('overview-3d-canvas')) heroTwin = new MaleUAVDigitalTwin('overview-3d-canvas', false);
+  if (document.getElementById('studio-3d-canvas')) studioTwin = new MaleUAVDigitalTwin('studio-3d-canvas', true);
+}
+
+function setHero3DMode(m) {
+  document.querySelectorAll('.hero-controls button').forEach(b => b.classList.remove('active'));
+  document.getElementById(`hero-btn-${m}`)?.classList.add('active');
+  if (heroTwin) heroTwin.setMode(m);
+}
+function setHeroCameraAngle(a) { if (heroTwin) heroTwin.setCameraAngle(a); }
+function toggleHeroOrbit() {
+  if (!heroTwin) return;
+  const on = heroTwin.toggleAutoRotate();
+  const btn = document.getElementById('hero-v360-orbit');
+  if (btn) { btn.classList.toggle('active', on); btn.textContent = `🔄 Auto-Spin: ${on ? 'ON' : 'OFF'}`; }
+}
+function resetHeroCamera() { if (heroTwin) heroTwin.setCameraAngle('iso'); }
+
+function setStudioView(m) {
+  document.querySelectorAll('.viewport-toolbar .btn-group:first-child button').forEach(b => b.classList.remove('active'));
+  document.getElementById(`studio-btn-${m}`)?.classList.add('active');
+  if (studioTwin) studioTwin.setMode(m);
+}
+function setStudioCameraAngle(a) { if (studioTwin) studioTwin.setCameraAngle(a); }
+function toggleExplodedEngine() { if (!studioTwin) return; studioTwin.exploded = !studioTwin.exploded; document.getElementById('studio-btn-explode')?.classList.toggle('active', studioTwin.exploded); }
+function toggleStudioPins() { if (!studioTwin) return; studioTwin.hotspotGroup.visible = !studioTwin.hotspotGroup.visible; const b = document.getElementById('studio-btn-pins'); if (b) b.textContent = `CAN Nodes: ${studioTwin.hotspotGroup.visible ? 'ON' : 'OFF'}`; }
+function toggleStudioOrbit() {
+  if (!studioTwin) return;
+  const on = studioTwin.toggleAutoRotate();
+  const b = document.getElementById('studio-btn-orbit'); if (b) b.textContent = `Auto-Orbit: ${on ? 'ON' : 'OFF'}`;
+  const bh = document.getElementById('studio-v360-orbit'); if (bh) { bh.classList.toggle('active', on); bh.textContent = `🔄 Auto-Spin: ${on ? 'ON' : 'OFF'}`; }
+}
+function resetStudioCamera() { if (studioTwin) studioTwin.setCameraAngle('iso'); }
+
+function focusComponent(id) {
+  state.activeComponent = id;
+  document.querySelectorAll('.insp-item').forEach(el => el.classList.remove('active'));
+  event?.target?.closest?.('.insp-item')?.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════════════════════════════════
+function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+function chartColors() { return { txt: isDark() ? '#94a3b8' : '#475569', grid: isDark() ? '#1e293b' : '#f1f5f9' }; }
+
+function initCharts() {
+  const cc = chartColors();
+  const baseOpts = (title) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: cc.txt, font: { size: 10 } } } },
+    scales: {
+      x: { ticks: { color: cc.txt, maxTicksLimit: 8 }, grid: { color: cc.grid } },
+      y: { ticks: { color: cc.txt }, grid: { color: cc.grid } }
+    }
+  });
+
+  // CHT Chart
+  const chtCtx = document.getElementById('chart-cht');
+  if (chtCtx) {
+    state.charts.cht = new Chart(chtCtx, {
+      type: 'line', data: {
+        labels: [], datasets: [
+          { label: 'CHT 1', data: [], borderColor: '#3b82f6', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'CHT 2', data: [], borderColor: '#ef4444', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'CHT 3', data: [], borderColor: '#f59e0b', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'CHT 4', data: [], borderColor: '#10b981', borderWidth: 1.5, pointRadius: 0 }
+        ]
+      }, options: { ...baseOpts('CHT'), animation: false }
+    });
+  }
+
+  // RPM/MAP Chart
+  const rpmCtx = document.getElementById('chart-rpm-map');
+  if (rpmCtx) {
+    state.charts.rpmMap = new Chart(rpmCtx, {
+      type: 'line', data: {
+        labels: [], datasets: [
+          { label: 'RPM', data: [], borderColor: '#8b5cf6', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y' },
+          { label: 'MAP (inHg)', data: [], borderColor: '#06b6d4', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y1' }
+        ]
+      }, options: {
+        ...baseOpts('RPM vs MAP'), animation: false,
+        scales: {
+          x: { ticks: { color: cc.txt, maxTicksLimit: 8 }, grid: { color: cc.grid } },
+          y: { type: 'linear', position: 'left', ticks: { color: cc.txt }, grid: { color: cc.grid } },
+          y1: { type: 'linear', position: 'right', ticks: { color: cc.txt }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // Vibration Chart
+  const vibCtx = document.getElementById('chart-vibration');
+  if (vibCtx) {
+    state.charts.vib = new Chart(vibCtx, {
+      type: 'line', data: {
+        labels: [], datasets: [
+          { label: 'Vib X', data: [], borderColor: '#f43f5e', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'Vib Y', data: [], borderColor: '#a855f7', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'Vib Z', data: [], borderColor: '#14b8a6', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'RMS', data: [], borderColor: '#f59e0b', borderWidth: 2, pointRadius: 0 }
+        ]
+      }, options: { ...baseOpts('Vibration'), animation: false }
+    });
+  }
+
+  // Fuel/Oil Chart
+  const foCtx = document.getElementById('chart-fuel-oil');
+  if (foCtx) {
+    state.charts.fuelOil = new Chart(foCtx, {
+      type: 'line', data: {
+        labels: [], datasets: [
+          { label: 'Fuel Flow', data: [], borderColor: '#06b6d4', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'Oil Press', data: [], borderColor: '#f59e0b', borderWidth: 1.5, pointRadius: 0 }
+        ]
+      }, options: { ...baseOpts('Fuel & Oil'), animation: false }
+    });
+  }
+
+  // Sim timeline
+  const stCtx = document.getElementById('chart-sim-timeline');
+  if (stCtx) {
+    state.charts.simTimeline = new Chart(stCtx, {
+      type: 'line', data: {
+        labels: [], datasets: [
+          { label: 'RPM', data: [], borderColor: '#8b5cf6', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'CHT Avg', data: [], borderColor: '#ef4444', borderWidth: 1.5, pointRadius: 0 },
+          { label: 'Oil Press', data: [], borderColor: '#f59e0b', borderWidth: 1.5, pointRadius: 0 }
+        ]
+      }, options: { ...baseOpts('Sim Timeline'), animation: false }
+    });
+  }
+}
+
+function pushChartData(chart, label, values, maxLen = 50) {
+  if (!chart) return;
+  chart.data.labels.push(label);
+  values.forEach((v, i) => { if (chart.data.datasets[i]) chart.data.datasets[i].data.push(v); });
+  if (chart.data.labels.length > maxLen) {
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(ds => ds.data.shift());
+  }
+  chart.update('none');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TELEMETRY
+// ══════════════════════════════════════════════════════════════════
+function buildTelemetryGrid() {
+  const sensors = [
+    { id: 'rpm', label: 'RPM', unit: '' }, { id: 'throttle_pct', label: 'Throttle', unit: '%' },
+    { id: 'manifold_pressure', label: 'MAP', unit: 'inHg' },
+    { id: 'cht_1', label: 'CHT 1', unit: '°F' }, { id: 'cht_2', label: 'CHT 2', unit: '°F' },
+    { id: 'cht_3', label: 'CHT 3', unit: '°F' }, { id: 'cht_4', label: 'CHT 4', unit: '°F' },
+    { id: 'egt_1', label: 'EGT 1', unit: '°F' }, { id: 'egt_2', label: 'EGT 2', unit: '°F' },
+    { id: 'egt_3', label: 'EGT 3', unit: '°F' }, { id: 'egt_4', label: 'EGT 4', unit: '°F' },
+    { id: 'fuel_flow', label: 'Fuel Flow', unit: 'GPH' }, { id: 'fuel_pressure', label: 'Fuel Press', unit: 'PSI' },
+    { id: 'oil_pressure', label: 'Oil Press', unit: 'PSI' }, { id: 'oil_temp', label: 'Oil Temp', unit: '°F' },
+    { id: 'coolant_temp', label: 'Coolant', unit: '°F' },
+    { id: 'vib_rms', label: 'Vib RMS', unit: 'g' }, { id: 'battery_voltage', label: 'Battery', unit: 'V' },
+    { id: 'airspeed_kts', label: 'Airspeed', unit: 'kts' }, { id: 'altitude_ft', label: 'Altitude', unit: 'ft' }
+  ];
+  const grid = document.getElementById('telemetry-grid');
+  if (!grid) return;
+  grid.innerHTML = sensors.map(s => `
+    <div class="tel-card">
+      <div class="tel-card-label">${s.label}</div>
+      <div class="tel-card-val" id="tel-${s.id}">—</div>
+      <div class="tel-card-unit">${s.unit}</div>
+    </div>
+  `).join('');
+}
+
+function updateTelemetryGrid(sensor) {
+  Object.keys(sensor).forEach(k => {
+    const el = document.getElementById(`tel-${k}`);
+    if (el) el.textContent = typeof sensor[k] === 'number' ? sensor[k].toFixed(1) : sensor[k];
+  });
+}
+
+function startTelemetryPolling() {
+  stopTelemetryPolling();
+  fetchAndUpdateTelemetry();
+  state.telemetryPollInterval = setInterval(fetchAndUpdateTelemetry, 2000);
+}
+
+function stopTelemetryPolling() {
+  if (state.telemetryPollInterval) { clearInterval(state.telemetryPollInterval); state.telemetryPollInterval = null; }
+}
+
+async function fetchAndUpdateTelemetry() {
+  try {
+    const res = await fetch(`${API}/telemetry/live`);
+    const data = await res.json();
+    if (data.sensor) {
+      updateTelemetryGrid(data.sensor);
+      const ts = new Date().toLocaleTimeString();
+      pushChartData(state.charts.cht, ts, [data.sensor.cht_1, data.sensor.cht_2, data.sensor.cht_3, data.sensor.cht_4]);
+      pushChartData(state.charts.rpmMap, ts, [data.sensor.rpm, data.sensor.manifold_pressure]);
+      pushChartData(state.charts.vib, ts, [data.sensor.vib_x, data.sensor.vib_y, data.sensor.vib_z, data.sensor.vib_rms]);
+      pushChartData(state.charts.fuelOil, ts, [data.sensor.fuel_flow, data.sensor.oil_pressure]);
+
+      // Update overview KPIs
+      if (data.prediction) {
+        updateOverviewKPIs(data.sensor, data.prediction);
+        if (heroTwin) heroTwin.updateFromTelemetry(data.sensor, data.prediction);
+      }
+    }
+  } catch (e) { /* silent */ }
+}
+
+function updateOverviewKPIs(sensor, pred) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('kpi-ehi-val', (pred.ehi || 96.5).toFixed(1) + '%');
+  set('kpi-ehi-status', pred.ehi > 85 ? 'OPTIMAL' : pred.ehi > 60 ? 'DEGRADED' : 'CRITICAL');
+  set('kpi-ehi-deg', (pred.degradation || 0.035).toFixed(3));
+  set('kpi-rul-val', Math.round(pred.rul_hours || 1420).toLocaleString() + ' hrs');
+  set('kpi-fault-class', pred.fault_class || 'NOMINAL');
+  set('kpi-anomaly', pred.is_anomaly ? 'ANOMALY' : 'NORMAL');
+  set('kpi-anomaly-score', (pred.anomaly_score || 0.142).toFixed(3));
+  set('phase-badge', sensor.phase || state.currentPhase || 'ISR_LOITER');
+
+  const fcEl = document.getElementById('kpi-fault-class');
+  if (fcEl) { fcEl.className = pred.fault_class === 'NOMINAL' ? 'kpi-big-number green-text' : 'kpi-big-number red-text'; }
+  const anEl = document.getElementById('kpi-anomaly');
+  if (anEl) { anEl.className = pred.is_anomaly ? 'kpi-big-number red-text' : 'kpi-big-number green-text'; }
+
+  // Alert for faults
+  if (pred.fault_class && pred.fault_class !== 'NOMINAL') {
+    addAlert('danger', `Fault Detected: ${pred.fault_class}`, `Confidence: ${(pred.fault_probabilities?.[pred.fault_class] || 0.85) * 100}%. EHI dropped to ${pred.ehi?.toFixed(1)}%`);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SIMULATION
+// ══════════════════════════════════════════════════════════════════
+async function startSimulation() {
+  const env = document.getElementById('sim-env-select')?.value || 'STANDARD_ISA';
+  const fault = document.getElementById('sim-fault-select')?.value || 'NOMINAL';
+  try {
+    await fetch(`${API}/simulation/start`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ env_preset: env, fault_type: fault })
+    });
+    state.simRunning = true;
+    document.getElementById('sim-status-val').textContent = 'RUNNING';
+    document.getElementById('sim-status-val').style.color = '#059669';
+    document.getElementById('sim-env-val').textContent = env;
+    document.getElementById('sim-fault-val').textContent = fault;
+    addAlert('success', 'Mission Simulation Started', `Environment: ${env} · Fault: ${fault}`);
+
+    if (state.simPollInterval) clearInterval(state.simPollInterval);
+    state.simPollInterval = setInterval(pollSimulation, 2000);
+  } catch (e) { addAlert('danger', 'Simulation Error', e.message); }
+}
+
+async function stopSimulation() {
+  try {
+    await fetch(`${API}/simulation/stop`, { method: 'POST' });
+    state.simRunning = false;
+    if (state.simPollInterval) { clearInterval(state.simPollInterval); state.simPollInterval = null; }
+    document.getElementById('sim-status-val').textContent = 'STOPPED';
+    document.getElementById('sim-status-val').style.color = '#dc2626';
+    addAlert('info', 'Mission Simulation Stopped', 'All telemetry streaming paused.');
+  } catch (e) { /* */ }
+}
+
+async function pollSimulation() {
+  try {
+    const res = await fetch(`${API}/telemetry/live`);
+    const data = await res.json();
+    if (!data.sensor) return;
+
+    const s = data.sensor, p = data.prediction || {};
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+    // Update sim status
+    const sres = await fetch(`${API}/status`);
+    const status = await sres.json();
+    set('sim-phase-val', status.flight_phase);
+    set('sim-cycle-val', status.cycle);
+    const secs = status.mission_time_sec || 0;
+    const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), sec = secs%60;
+    set('sim-time-val', `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`);
+
+    // Update live sensor values
+    set('sim-rpm', Math.round(s.rpm).toLocaleString());
+    set('sim-cht', (s.cht_avg || 0).toFixed(1) + ' °F');
+    set('sim-egt', (s.egt_spread || 0).toFixed(1) + ' °F');
+    set('sim-oil', (s.oil_pressure || 0).toFixed(1) + ' PSI');
+    set('sim-fuel', (s.fuel_flow || 0).toFixed(1) + ' GPH');
+    set('sim-vib', (s.vib_rms || 0).toFixed(2) + ' g');
+    set('sim-cool', (s.coolant_temp || 0).toFixed(1) + ' °F');
+    set('sim-batt', (s.battery_voltage || 0).toFixed(1) + ' V');
+
+    // Update predictions
+    set('sim-pred-fault', p.fault_class || 'NOMINAL');
+    set('sim-pred-ehi', (p.ehi || 96).toFixed(1) + '%');
+    set('sim-pred-rul', Math.round(p.rul_hours || 1200) + ' hrs');
+    set('sim-pred-anomaly', p.is_anomaly ? '⚠️ YES' : '✅ NO');
+    const predFaultEl = document.getElementById('sim-pred-fault');
+    if (predFaultEl) predFaultEl.style.color = p.fault_class === 'NOMINAL' ? '#059669' : '#dc2626';
+
+    // Sim timeline chart
+    pushChartData(state.charts.simTimeline, status.cycle?.toString() || '', [s.rpm / 100, s.cht_avg, s.oil_pressure]);
+
+    // Also update overview
+    updateOverviewKPIs(s, p);
+    if (heroTwin) heroTwin.updateFromTelemetry(s, p);
+  } catch (e) { /* silent */ }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ML ANALYTICS
+// ══════════════════════════════════════════════════════════════════
+async function loadMLMetrics() {
+  try {
+    const res = await fetch(`${API}/ml/metrics`);
+    const m = await res.json();
+    if (m.error) return;
+
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ml-accuracy', (m.accuracy * 100).toFixed(1) + '%');
+    set('ml-r2', m.rul_r2?.toFixed(3));
+    set('ml-rmse', m.rul_rmse_hours?.toFixed(1) + ' hrs');
+    set('ml-dataset', m.dataset_size?.toLocaleString() + ' samples');
+    set('ml-features', m.features?.length);
+    set('kpi-accuracy', (m.accuracy * 100).toFixed(1) + '%');
+
+    // Training curves
+    if (m.history && state.charts.training) {
+      state.charts.training.destroy();
+    }
+    const tCtx = document.getElementById('chart-training');
+    if (tCtx && m.history) {
+      state.charts.training = new Chart(tCtx, {
+        type: 'line', data: {
+          labels: m.history.map(h => `E${h.epoch}`),
+          datasets: [
+            { label: 'Train Loss', data: m.history.map(h => h.loss), borderColor: '#ef4444', borderWidth: 2, pointRadius: 3 },
+            { label: 'Val Loss', data: m.history.map(h => h.val_loss), borderColor: '#f59e0b', borderWidth: 2, pointRadius: 3 },
+            { label: 'Accuracy', data: m.history.map(h => h.accuracy), borderColor: '#10b981', borderWidth: 2, pointRadius: 3, yAxisID: 'y1' }
+          ]
+        }, options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            y: { ticks: { color: chartColors().txt }, grid: { color: chartColors().grid } },
+            y1: { type: 'linear', position: 'right', ticks: { color: chartColors().txt }, grid: { display: false } },
+            x: { ticks: { color: chartColors().txt }, grid: { color: chartColors().grid } }
+          }
+        }
+      });
+    }
+
+    // Feature importance
+    if (m.feature_ranking) {
+      const fCtx = document.getElementById('chart-features');
+      if (fCtx) {
+        if (state.charts.features) state.charts.features.destroy();
+        const top12 = m.feature_ranking.slice(0, 12);
+        state.charts.features = new Chart(fCtx, {
+          type: 'bar', data: {
+            labels: top12.map(f => f.feature),
+            datasets: [{ label: 'Importance', data: top12.map(f => f.importance), backgroundColor: '#3b82f6', borderRadius: 4 }]
+          }, options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            scales: {
+              x: { ticks: { color: chartColors().txt }, grid: { color: chartColors().grid } },
+              y: { ticks: { color: chartColors().txt, font: { size: 10 } }, grid: { display: false } }
+            }
+          }
+        });
+      }
+    }
+
+    // Confusion Matrix
+    if (m.confusion_matrix && m.classes) {
+      buildConfusionMatrix(m.confusion_matrix, m.classes);
+    }
+  } catch (e) { console.error('ML metrics error:', e); }
+}
+
+function buildConfusionMatrix(cm, classes) {
+  const wrap = document.getElementById('confusion-matrix');
+  if (!wrap) return;
+  const n = classes.length;
+  wrap.style.gridTemplateColumns = `60px repeat(${n}, 1fr)`;
+  let html = '<div class="cm-header"></div>';
+  classes.forEach(c => html += `<div class="cm-header">${c.substring(0, 6)}</div>`);
+
+  for (let i = 0; i < n; i++) {
+    html += `<div class="cm-header">${classes[i].substring(0, 6)}</div>`;
+    const rowMax = Math.max(...cm[i]);
+    for (let j = 0; j < n; j++) {
+      const val = cm[i][j];
+      const intensity = rowMax > 0 ? val / rowMax : 0;
+      const bg = i === j
+        ? `rgba(5,150,105,${0.15 + intensity * 0.7})`
+        : val > 0 ? `rgba(220,38,38,${0.1 + intensity * 0.5})` : 'transparent';
+      const color = intensity > 0.5 ? '#fff' : (isDark() ? '#e2e8f0' : '#0f172a');
+      html += `<div class="cm-cell" style="background:${bg};color:${color}">${val}</div>`;
+    }
+  }
+  wrap.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ALERTS
+// ══════════════════════════════════════════════════════════════════
+function addAlert(type, title, msg) {
+  const icons = { danger: 'alert-triangle', warning: 'alert-circle', info: 'info', success: 'check-circle' };
+  const list = document.getElementById('alerts-list');
+  if (!list) return;
+
+  // Don't spam duplicates within 5 seconds
+  const key = `${type}-${title}`;
+  if (state.alerts.includes(key)) return;
+  state.alerts.push(key);
+  setTimeout(() => { state.alerts = state.alerts.filter(a => a !== key); }, 5000);
+
+  const el = document.createElement('div');
+  el.className = `alert-item alert-${type}`;
+  el.innerHTML = `
+    <div class="alert-icon"><i data-lucide="${icons[type] || 'info'}"></i></div>
+    <div class="alert-content">
+      <div class="alert-title">${title}</div>
+      <div class="alert-msg">${msg}</div>
+      <div class="alert-time mono">${new Date().toLocaleTimeString()}</div>
+    </div>
+  `;
+  list.prepend(el);
+  if (window.lucide) window.lucide.createIcons();
+  if (list.children.length > 20) list.removeChild(list.lastChild);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+  init3D();
+  initCharts();
+  buildTelemetryGrid();
+  startTelemetryPolling();
+  loadMLMetrics();
+
+  // Start simulation auto so overview has live data
+  fetch(`${API}/simulation/start`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ env_preset: 'STANDARD_ISA', fault_type: 'NOMINAL' })
+  }).catch(() => {});
+});
