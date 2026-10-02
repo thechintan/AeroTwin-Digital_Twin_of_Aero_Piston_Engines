@@ -373,6 +373,39 @@
         <div class="sim-stat"><span class="sim-stat-label">Environment</span><span class="sim-stat-val mono" id="sim-env-val">STANDARD_ISA</span></div>
       </div>
 
+      <!-- 3D Flight Simulation Canvas -->
+      <div class="flight-sim-container">
+        <div class="flight-sim-hud">
+          <div class="hud-top-bar">
+            <div><span class="hud-label">MISSION FEED</span> <span class="mono">LIVE / UNCLASSIFIED</span></div>
+            <div><button class="btn btn-sm btn-ghost" id="voice-toggle-btn" onclick="toggleVoice()"><i data-lucide="volume-2" style="width:14px;height:14px;"></i> Voice: ON</button></div>
+          </div>
+          <div class="hud-bottom-bar">
+            <div class="hud-block">
+              <div class="hud-label">ALTITUDE</div>
+              <div class="hud-val mono" id="fs-alt">0 ft</div>
+            </div>
+            <div class="hud-block">
+              <div class="hud-label">AIRSPEED (IAS)</div>
+              <div class="hud-val mono" id="fs-ias">0 kt</div>
+            </div>
+            <div class="hud-block">
+              <div class="hud-label">ENGINE EHI</div>
+              <div class="hud-val mono" id="fs-ehi" style="color: #10b981;">100.0%</div>
+            </div>
+            <div class="hud-block">
+              <div class="hud-label">PROP RPM</div>
+              <div class="hud-val mono" id="fs-rpm">0</div>
+            </div>
+            <div class="hud-block" style="flex:1; text-align:right;">
+              <div class="hud-label">SYSTEM STATUS</div>
+              <div class="hud-val mono" id="fs-status" style="color: #10b981;">NOMINAL</div>
+            </div>
+          </div>
+        </div>
+        <div id="flight-sim-canvas" style="width: 100%; height: 400px; background: #87CEEB;"></div>
+      </div>
+
       <div class="sim-live-panel">
         <div class="sim-live-card" id="sim-live-sensor">
           <h3 class="card-title">Live Sensor Stream</h3>

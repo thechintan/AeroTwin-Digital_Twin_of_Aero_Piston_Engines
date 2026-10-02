@@ -512,3 +512,74 @@ body {
   .hero-controls { flex-wrap: wrap; }
   .telemetry-mini-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ════════ FLIGHT SIMULATION HUD ════════ */
+.flight-sim-container {
+  position: relative;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+}
+.flight-sim-hud {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 15px;
+  z-index: 10;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+.flight-sim-hud .hud-top-bar, .flight-sim-hud .hud-bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.flight-sim-hud .hud-bottom-bar {
+  background: rgba(15, 23, 42, 0.75);
+  padding: 10px 15px;
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  color: #fff;
+  gap: 20px;
+}
+.flight-sim-hud .hud-block {
+  display: flex;
+  flex-direction: column;
+}
+.flight-sim-hud .hud-label {
+  color: #94a3b8;
+  font-size: 10px;
+  margin-bottom: 4px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.flight-sim-hud .hud-val {
+  font-size: 16px;
+  font-weight: 600;
+}
+.flight-sim-hud .hud-top-bar > div:first-child .hud-label {
+  background: rgba(15, 23, 42, 0.7);
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #fff;
+}
+.flight-sim-hud .hud-top-bar > div:first-child .mono {
+  background: rgba(220, 38, 38, 0.8);
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 600;
+}
+.flight-sim-hud #voice-toggle-btn {
+  pointer-events: auto;
+  background: rgba(15, 23, 42, 0.7);
+  color: #fff;
+  border-color: rgba(255,255,255,0.2);
+}

@@ -12,8 +12,27 @@ const state = {
   charts: {},
   chartData: { cht: [], rpm: [], map: [], vib: [], fuelFlow: [], oilPress: [] },
   alerts: [],
-  activeComponent: 'cyl_head_2'
+  activeComponent: 'cyl_head_2',
+  voiceEnabled: true,
+  lastPhase: null,
+  lastFault: null
 };
+
+// ══════════════════════════════════════════════════════════════════
+// VOICE TTS
+// ══════════════════════════════════════════════════════════════════
+function toggleVoice() {
+  state.voiceEnabled = !state.voiceEnabled;
+  const btn = document.getElementById('voice-toggle-btn');
+  if (btn) btn.innerHTML = `<i data-lucide="${state.voiceEnabled ? 'volume-2' : 'volume-x'}" style="width:14px;height:14px;"></i> Voice: ${state.voiceEnabled ? 'ON' : 'OFF'}`;
+  if (window.lucide) window.lucide.createIcons();
+}
+function announceVoice(msg) {
+  if (!state.voiceEnabled || !window.speechSynthesis) return;
+  const ut = new SpeechSynthesisUtterance(msg);
+  ut.rate = 1.0; ut.pitch = 0.95;
+  window.speechSynthesis.speak(ut);
+}
 
 // ══════════════════════════════════════════════════════════════════
 // NAVIGATION
@@ -331,11 +350,113 @@ class MaleUAVDigitalTwin {
   }
 }
 
-let heroTwin = null, studioTwin = null;
+// ══════════════════════════════════════════════════════════════════
+// 3D FLIGHT SIMULATOR (MISSION VIEW)
+// ══════════════════════════════════════════════════════════════════
+class FlightSimulator3D {
+  constructor(canvasId) {
+    this.container = document.getElementById(canvasId);
+    if (!this.container) return;
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
+    this.scene.fog = new THREE.Fog(0x87CEEB, 10, 50);
+
+    this.camera = new THREE.PerspectiveCamera(50, this.container.clientWidth/this.container.clientHeight, 0.1, 100);
+    this.camera.position.set(-15, 3, 10);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+    this.container.appendChild(this.renderer.domElement);
+
+    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.target.set(0, 0, 0);
+
+    // Lighting
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+    dir.position.set(10, 20, 10);
+    this.scene.add(dir);
+
+    // Ground
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshBasicMaterial({ color: 0x4d7c0f }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -8;
+    this.scene.add(ground);
+
+    // UAV Model
+    this.uavGroup = new THREE.Group();
+    this.parts = {};
+    const geomFuse = new THREE.CylinderGeometry(0.8, 0.3, 8, 32);
+    geomFuse.rotateZ(Math.PI / 2);
+    this.parts.fuselage = new THREE.Mesh(geomFuse, new THREE.MeshStandardMaterial({ color: 0xe2e8f0 }));
+    this.uavGroup.add(this.parts.fuselage);
+
+    const geomWing = new THREE.BoxGeometry(2.5, 0.1, 14);
+    this.parts.wings = new THREE.Mesh(geomWing, new THREE.MeshStandardMaterial({ color: 0xcbd5e1 }));
+    this.parts.wings.position.set(0.5, 0, 0);
+    this.uavGroup.add(this.parts.wings);
+
+    const geomTail = new THREE.BoxGeometry(1.2, 0.1, 4);
+    this.parts.tail = new THREE.Mesh(geomTail, new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+    this.parts.tail.position.set(-3.5, 0, 0);
+    this.uavGroup.add(this.parts.tail);
+
+    const geomVtail = new THREE.BoxGeometry(1.0, 2.0, 0.1);
+    this.parts.vtail = new THREE.Mesh(geomVtail, new THREE.MeshStandardMaterial({ color: 0x64748b }));
+    this.parts.vtail.position.set(-3.5, 1.0, 0);
+    this.uavGroup.add(this.parts.vtail);
+
+    this.parts.prop = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.8, 0.2), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+    this.parts.prop.position.set(4.1, 0, 0);
+    this.uavGroup.add(this.parts.prop);
+    
+    this.scene.add(this.uavGroup);
+
+    this.propSpeed = 0.5;
+    this.targetPitch = 0;
+    this.targetRoll = 0;
+
+    window.addEventListener('resize', () => this.onResize());
+    this.animate();
+  }
+  updateState(sensor, pred) {
+    if (!sensor) return;
+    this.propSpeed = (sensor.rpm || 0) * 0.001;
+    // Pitch up if climbing
+    if (sensor.phase === 'CLIMB') this.targetPitch = 0.15;
+    else if (sensor.phase === 'DESCENT') this.targetPitch = -0.1;
+    else this.targetPitch = 0;
+    // Roll slightly based on wind/vibration
+    this.targetRoll = (Math.random() - 0.5) * (sensor.vib_rms * 0.05 || 0.01);
+  }
+  animate() {
+    requestAnimationFrame(() => this.animate());
+    if (this.parts.prop) this.parts.prop.rotation.x += this.propSpeed;
+    
+    // Smooth transition for pitch and roll
+    this.uavGroup.rotation.z += (this.targetPitch - this.uavGroup.rotation.z) * 0.05;
+    this.uavGroup.rotation.x += (this.targetRoll - this.uavGroup.rotation.x) * 0.1;
+    
+    // Simulate slight bobbing
+    this.uavGroup.position.y = Math.sin(Date.now() * 0.002) * 0.3;
+
+    if (this.controls) this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+  onResize() {
+    if (!this.container) return;
+    const w = this.container.clientWidth, h = this.container.clientHeight;
+    this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h);
+  }
+}
+
+let heroTwin = null, studioTwin = null, fsTwin = null;
 
 function init3D() {
   if (document.getElementById('overview-3d-canvas')) heroTwin = new MaleUAVDigitalTwin('overview-3d-canvas', false);
   if (document.getElementById('studio-3d-canvas')) studioTwin = new MaleUAVDigitalTwin('studio-3d-canvas', true);
+  if (document.getElementById('flight-sim-canvas')) fsTwin = new FlightSimulator3D('flight-sim-canvas');
 }
 
 function setHero3DMode(m) {
@@ -585,6 +706,10 @@ async function startSimulation() {
     document.getElementById('sim-env-val').textContent = env;
     document.getElementById('sim-fault-val').textContent = fault;
     addAlert('success', 'Mission Simulation Started', `Environment: ${env} · Fault: ${fault}`);
+    
+    state.lastPhase = null;
+    state.lastFault = null;
+    announceVoice(`Starting mission simulation. Environment set to ${env}. Fault profile: ${fault.replace('_', ' ')}.`);
 
     if (state.simPollInterval) clearInterval(state.simPollInterval);
     state.simPollInterval = setInterval(pollSimulation, 2000);
@@ -599,6 +724,7 @@ async function stopSimulation() {
     document.getElementById('sim-status-val').textContent = 'STOPPED';
     document.getElementById('sim-status-val').style.color = '#dc2626';
     addAlert('info', 'Mission Simulation Stopped', 'All telemetry streaming paused.');
+    announceVoice('Mission simulation stopped.');
   } catch (e) { /* */ }
 }
 
@@ -637,6 +763,35 @@ async function pollSimulation() {
     set('sim-pred-anomaly', p.is_anomaly ? '⚠️ YES' : '✅ NO');
     const predFaultEl = document.getElementById('sim-pred-fault');
     if (predFaultEl) predFaultEl.style.color = p.fault_class === 'NOMINAL' ? '#059669' : '#dc2626';
+
+    // Update 3D Simulator & HUD
+    if (fsTwin) fsTwin.updateState(s, p);
+    set('fs-alt', Math.round(s.altitude_ft || 0).toLocaleString() + ' ft');
+    set('fs-ias', Math.round(s.airspeed_kts || 0) + ' kt');
+    set('fs-ehi', (p.ehi || 100).toFixed(1) + '%');
+    set('fs-rpm', Math.round(s.rpm || 0).toLocaleString());
+    set('fs-status', p.fault_class || 'NOMINAL');
+    
+    const fsStatusEl = document.getElementById('fs-status');
+    const fsEhiEl = document.getElementById('fs-ehi');
+    if (fsStatusEl) fsStatusEl.style.color = p.fault_class === 'NOMINAL' ? '#10b981' : '#dc2626';
+    if (fsEhiEl) fsEhiEl.style.color = (p.ehi || 100) > 85 ? '#10b981' : (p.ehi > 60 ? '#f59e0b' : '#dc2626');
+
+    // Voice Announcements
+    const curPhase = status.flight_phase || 'UNKNOWN';
+    if (curPhase !== state.lastPhase) {
+      announceVoice(`Flight phase changed to ${curPhase.replace('_', ' ')}`);
+      state.lastPhase = curPhase;
+    }
+
+    const curFault = p.fault_class || 'NOMINAL';
+    if (curFault !== 'NOMINAL' && curFault !== state.lastFault) {
+      announceVoice(`Warning. Fault detected: ${curFault.replace(/_/g, ' ')}. Engine health index dropped to ${p.ehi.toFixed(1)} percent.`);
+      state.lastFault = curFault;
+    } else if (curFault === 'NOMINAL' && state.lastFault && state.lastFault !== 'NOMINAL') {
+      announceVoice(`System recovered. Engine status is nominal.`);
+      state.lastFault = 'NOMINAL';
+    }
 
     // Sim timeline chart
     pushChartData(state.charts.simTimeline, status.cycle?.toString() || '', [s.rpm / 100, s.cht_avg, s.oil_pressure]);
