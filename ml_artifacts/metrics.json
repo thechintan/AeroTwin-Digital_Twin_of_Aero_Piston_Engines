@@ -39,72 +39,72 @@
     "SENSOR_DRIFT",
     "COMBUSTION_INSTABILITY"
   ],
-  "accuracy": 0.9317,
-  "rul_r2": 0.9092,
-  "rul_rmse_hours": 135.87,
+  "accuracy": 0.9783,
+  "rul_r2": 0.7399,
+  "rul_rmse_hours": 311.08,
   "confusion_matrix": [
     [
-      338,
+      44,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      45,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      3,
+      0,
+      42,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      45,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      45,
+      0,
+      0
+    ],
+    [
+      3,
+      0,
+      0,
+      0,
+      0,
+      323,
+      4
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
       0,
       2,
-      0,
-      0,
-      1,
-      0
-    ],
-    [
-      5,
-      49,
-      0,
-      0,
-      0,
-      0,
-      1
-    ],
-    [
-      13,
-      0,
-      35,
-      0,
-      0,
-      0,
-      0
-    ],
-    [
-      6,
-      0,
-      0,
-      37,
-      0,
-      0,
-      0
-    ],
-    [
-      4,
-      0,
-      0,
-      0,
-      34,
-      0,
-      0
-    ],
-    [
-      4,
-      0,
-      0,
-      0,
-      0,
-      32,
-      0
-    ],
-    [
-      4,
-      1,
-      0,
-      0,
-      0,
-      0,
-      34
+      43
     ]
   ],
   "feature_ranking": [
@@ -113,192 +113,192 @@
       "importance": 0.1126
     },
     {
-      "feature": "injection_timing_deg",
-      "importance": 0.0864
-    },
-    {
-      "feature": "fuel_pressure",
-      "importance": 0.0771
-    },
-    {
       "feature": "vib_rms",
-      "importance": 0.0687
-    },
-    {
-      "feature": "coolant_temp",
-      "importance": 0.0624
+      "importance": 0.0998
     },
     {
       "feature": "cht_2",
-      "importance": 0.0525
-    },
-    {
-      "feature": "oil_pressure",
-      "importance": 0.0508
-    },
-    {
-      "feature": "vib_z",
-      "importance": 0.0493
-    },
-    {
-      "feature": "cht_3",
-      "importance": 0.0484
-    },
-    {
-      "feature": "vib_x",
-      "importance": 0.0482
-    },
-    {
-      "feature": "vib_y",
-      "importance": 0.0452
+      "importance": 0.0928
     },
     {
       "feature": "egt_2",
-      "importance": 0.0398
-    },
-    {
-      "feature": "oil_temp",
-      "importance": 0.0396
-    },
-    {
-      "feature": "cht_1",
-      "importance": 0.0324
-    },
-    {
-      "feature": "cht_4",
-      "importance": 0.032
-    },
-    {
-      "feature": "manifold_pressure",
-      "importance": 0.028
-    },
-    {
-      "feature": "fuel_flow",
-      "importance": 0.0257
+      "importance": 0.0907
     },
     {
       "feature": "egt_3",
-      "importance": 0.0203
+      "importance": 0.0666
     },
     {
-      "feature": "rpm",
-      "importance": 0.0191
+      "feature": "oil_pressure",
+      "importance": 0.0634
     },
     {
-      "feature": "egt_4",
-      "importance": 0.0113
+      "feature": "fuel_pressure",
+      "importance": 0.0606
     },
     {
-      "feature": "throttle_pct",
-      "importance": 0.0102
+      "feature": "oil_temp",
+      "importance": 0.057
     },
     {
       "feature": "egt_1",
-      "importance": 0.0091
-    },
-    {
-      "feature": "altitude_ft",
-      "importance": 0.0089
-    },
-    {
-      "feature": "ambient_temp_c",
-      "importance": 0.0088
-    },
-    {
-      "feature": "airspeed_kts",
-      "importance": 0.0071
+      "importance": 0.0508
     },
     {
       "feature": "alternator_current",
-      "importance": 0.0061
+      "importance": 0.0448
+    },
+    {
+      "feature": "cht_3",
+      "importance": 0.0369
+    },
+    {
+      "feature": "coolant_temp",
+      "importance": 0.0363
+    },
+    {
+      "feature": "vib_z",
+      "importance": 0.0334
+    },
+    {
+      "feature": "cht_1",
+      "importance": 0.0317
+    },
+    {
+      "feature": "cht_4",
+      "importance": 0.0272
+    },
+    {
+      "feature": "manifold_pressure",
+      "importance": 0.0249
+    },
+    {
+      "feature": "injection_timing_deg",
+      "importance": 0.0235
+    },
+    {
+      "feature": "fuel_flow",
+      "importance": 0.0217
+    },
+    {
+      "feature": "rpm",
+      "importance": 0.0122
+    },
+    {
+      "feature": "throttle_pct",
+      "importance": 0.0023
+    },
+    {
+      "feature": "ambient_temp_c",
+      "importance": 0.0022
+    },
+    {
+      "feature": "egt_4",
+      "importance": 0.0019
+    },
+    {
+      "feature": "vib_x",
+      "importance": 0.0019
+    },
+    {
+      "feature": "vib_y",
+      "importance": 0.0016
+    },
+    {
+      "feature": "airspeed_kts",
+      "importance": 0.0016
+    },
+    {
+      "feature": "altitude_ft",
+      "importance": 0.0016
     }
   ],
   "history": [
     {
       "epoch": 1,
-      "loss": 0.7065,
-      "val_loss": 0.7823,
-      "accuracy": 0.5907,
-      "val_accuracy": 0.5553
+      "loss": 0.6852,
+      "val_loss": 0.756,
+      "accuracy": 0.6128,
+      "val_accuracy": 0.5816
     },
     {
       "epoch": 2,
-      "loss": 0.5502,
-      "val_loss": 0.6317,
-      "accuracy": 0.6692,
-      "val_accuracy": 0.6403
+      "loss": 0.5914,
+      "val_loss": 0.6486,
+      "accuracy": 0.6425,
+      "val_accuracy": 0.607
     },
     {
       "epoch": 3,
-      "loss": 0.4529,
-      "val_loss": 0.5019,
-      "accuracy": 0.7427,
-      "val_accuracy": 0.7067
+      "loss": 0.4942,
+      "val_loss": 0.5616,
+      "accuracy": 0.6646,
+      "val_accuracy": 0.637
     },
     {
       "epoch": 4,
-      "loss": 0.3638,
-      "val_loss": 0.4081,
-      "accuracy": 0.7933,
-      "val_accuracy": 0.7663
+      "loss": 0.405,
+      "val_loss": 0.4469,
+      "accuracy": 0.6901,
+      "val_accuracy": 0.6633
     },
     {
       "epoch": 5,
-      "loss": 0.2886,
-      "val_loss": 0.3247,
-      "accuracy": 0.832,
-      "val_accuracy": 0.8066
+      "loss": 0.3107,
+      "val_loss": 0.3759,
+      "accuracy": 0.7058,
+      "val_accuracy": 0.6801
     },
     {
       "epoch": 6,
-      "loss": 0.2285,
-      "val_loss": 0.2733,
-      "accuracy": 0.8705,
-      "val_accuracy": 0.84
+      "loss": 0.2618,
+      "val_loss": 0.2903,
+      "accuracy": 0.7617,
+      "val_accuracy": 0.7383
     },
     {
       "epoch": 7,
-      "loss": 0.1972,
-      "val_loss": 0.2248,
-      "accuracy": 0.8907,
-      "val_accuracy": 0.8702
+      "loss": 0.1945,
+      "val_loss": 0.2634,
+      "accuracy": 0.7936,
+      "val_accuracy": 0.7623
     },
     {
       "epoch": 8,
-      "loss": 0.1655,
-      "val_loss": 0.1907,
-      "accuracy": 0.9135,
-      "val_accuracy": 0.8959
+      "loss": 0.1623,
+      "val_loss": 0.2035,
+      "accuracy": 0.8546,
+      "val_accuracy": 0.8394
     },
     {
       "epoch": 9,
-      "loss": 0.1244,
-      "val_loss": 0.1657,
-      "accuracy": 0.9259,
-      "val_accuracy": 0.9048
+      "loss": 0.074,
+      "val_loss": 0.1032,
+      "accuracy": 0.8527,
+      "val_accuracy": 0.829
     },
     {
       "epoch": 10,
-      "loss": 0.1067,
-      "val_loss": 0.1345,
-      "accuracy": 0.941,
-      "val_accuracy": 0.9213
+      "loss": 0.0525,
+      "val_loss": 0.1045,
+      "accuracy": 0.9098,
+      "val_accuracy": 0.8767
     },
     {
       "epoch": 11,
-      "loss": 0.0897,
-      "val_loss": 0.1138,
-      "accuracy": 0.9511,
-      "val_accuracy": 0.9244
+      "loss": 0.05,
+      "val_loss": 0.094,
+      "accuracy": 0.9469,
+      "val_accuracy": 0.9173
     },
     {
       "epoch": 12,
-      "loss": 0.0789,
-      "val_loss": 0.111,
-      "accuracy": 0.9598,
-      "val_accuracy": 0.9451
+      "loss": 0.05,
+      "val_loss": 0.0878,
+      "accuracy": 0.98,
+      "val_accuracy": 0.947
     }
   ],
-  "timestamp": 1790759482.8438973,
+  "timestamp": 1790947279.6694999,
   "status": "TRAINING_COMPLETE"
 }

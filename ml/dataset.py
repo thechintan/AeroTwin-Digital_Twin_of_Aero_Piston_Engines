@@ -133,7 +133,7 @@ def generate_dataset(total_samples=3000, output_dir=None):
 
     csv_path = os.path.join(output_dir, 'male_uav_engine_telemetry.csv')
     df.to_csv(csv_path, index=False)
-    print(f"[DATASET] Generated {len(df)} samples → {csv_path}")
+    print(f"[DATASET] Generated {len(df)} samples -> {csv_path}")
     return df, csv_path
 
 if __name__ == '__main__':
