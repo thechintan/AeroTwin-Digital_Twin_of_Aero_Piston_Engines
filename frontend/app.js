@@ -49,6 +49,13 @@ function switchPage(page) {
   if (page === 'analytics') loadMLMetrics();
   if (page === 'telemetry') startTelemetryPolling();
   else stopTelemetryPolling();
+  
+  // Fix 3D canvas sizing if they were initialized while hidden
+  setTimeout(() => {
+    if (page === 'overview' && heroTwin) heroTwin.onResize();
+    if (page === 'twin' && studioTwin) studioTwin.onResize();
+    if (page === 'simulation' && fsTwin) fsTwin.onResize();
+  }, 50);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -363,11 +370,14 @@ class FlightSimulator3D {
     this.scene.background = new THREE.Color(0x87CEEB); 
     this.scene.fog = new THREE.Fog(0x87CEEB, 20, 80);
 
-    this.camera = new THREE.PerspectiveCamera(50, this.container.clientWidth/this.container.clientHeight, 0.1, 1000);
+    const w = this.container.clientWidth || 800;
+    const h = this.container.clientHeight || 400;
+
+    this.camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 1000);
     this.camera.position.set(-20, 5, 15);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+    this.renderer.setSize(w, h);
     this.container.appendChild(this.renderer.domElement);
 
     this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -518,8 +528,11 @@ class FlightSimulator3D {
   }
   onResize() {
     if (!this.container) return;
-    const w = this.container.clientWidth, h = this.container.clientHeight;
-    this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h);
+    const w = this.container.clientWidth || 800;
+    const h = this.container.clientHeight || 400;
+    this.camera.aspect = w / h; 
+    this.camera.updateProjectionMatrix(); 
+    this.renderer.setSize(w, h);
   }
 }
 
