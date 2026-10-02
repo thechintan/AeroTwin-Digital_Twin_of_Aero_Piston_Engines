@@ -358,11 +358,13 @@ class FlightSimulator3D {
     this.container = document.getElementById(canvasId);
     if (!this.container) return;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
-    this.scene.fog = new THREE.Fog(0x87CEEB, 10, 50);
+    
+    // Default environment (Standard ISA)
+    this.scene.background = new THREE.Color(0x87CEEB); 
+    this.scene.fog = new THREE.Fog(0x87CEEB, 20, 80);
 
-    this.camera = new THREE.PerspectiveCamera(50, this.container.clientWidth/this.container.clientHeight, 0.1, 100);
-    this.camera.position.set(-15, 3, 10);
+    this.camera = new THREE.PerspectiveCamera(50, this.container.clientWidth/this.container.clientHeight, 0.1, 1000);
+    this.camera.position.set(-20, 5, 15);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
@@ -371,75 +373,145 @@ class FlightSimulator3D {
     this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.target.set(0, 0, 0);
+    this.controls.maxPolarAngle = Math.PI/2 - 0.05; // Prevent going below ground
 
     // Lighting
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.6);
-    dir.position.set(10, 20, 10);
-    this.scene.add(dir);
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    this.scene.add(this.ambientLight);
+    this.dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    this.dirLight.position.set(20, 40, 20);
+    this.scene.add(this.dirLight);
 
-    // Ground
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshBasicMaterial({ color: 0x4d7c0f }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -8;
-    this.scene.add(ground);
+    // Scrolling Ground
+    const groundGeom = new THREE.PlaneGeometry(200, 200, 50, 50);
+    const pos = groundGeom.attributes.position;
+    for(let i=0; i<pos.count; i++) pos.setZ(i, Math.random() * 0.5);
+    groundGeom.computeVertexNormals();
 
-    // UAV Model
+    this.groundMat = new THREE.MeshStandardMaterial({ color: 0x4d7c0f, flatShading: true, wireframe: false });
+    this.ground = new THREE.Mesh(groundGeom, this.groundMat);
+    this.ground.rotation.x = -Math.PI / 2;
+    this.ground.position.y = -10;
+    this.scene.add(this.ground);
+
+    // Better MQ-9 UAV Model
     this.uavGroup = new THREE.Group();
     this.parts = {};
-    const geomFuse = new THREE.CylinderGeometry(0.8, 0.3, 8, 32);
+    
+    // Fuselage (sleeker)
+    const geomFuse = new THREE.CylinderGeometry(0.6, 0.3, 10, 32);
     geomFuse.rotateZ(Math.PI / 2);
-    this.parts.fuselage = new THREE.Mesh(geomFuse, new THREE.MeshStandardMaterial({ color: 0xe2e8f0 }));
+    this.parts.fuselage = new THREE.Mesh(geomFuse, new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3, metalness: 0.2 }));
     this.uavGroup.add(this.parts.fuselage);
 
-    const geomWing = new THREE.BoxGeometry(2.5, 0.1, 14);
+    // Nose Radome (bulb)
+    const geomRadome = new THREE.SphereGeometry(0.7, 32, 16);
+    this.parts.radome = new THREE.Mesh(geomRadome, new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2, metalness: 0.1 }));
+    this.parts.radome.position.set(4.5, 0.2, 0);
+    this.parts.radome.scale.set(1.5, 1, 1);
+    this.uavGroup.add(this.parts.radome);
+    
+    // Sensor Turret (under nose)
+    const geomTurret = new THREE.SphereGeometry(0.4, 16, 16);
+    this.parts.turret = new THREE.Mesh(geomTurret, new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.1, metalness: 0.8 }));
+    this.parts.turret.position.set(4.0, -0.6, 0);
+    this.uavGroup.add(this.parts.turret);
+
+    // Wings (long and thin)
+    const geomWing = new THREE.BoxGeometry(1.5, 0.15, 22);
     this.parts.wings = new THREE.Mesh(geomWing, new THREE.MeshStandardMaterial({ color: 0xcbd5e1 }));
-    this.parts.wings.position.set(0.5, 0, 0);
+    this.parts.wings.position.set(1.0, 0.2, 0);
     this.uavGroup.add(this.parts.wings);
 
-    const geomTail = new THREE.BoxGeometry(1.2, 0.1, 4);
-    this.parts.tail = new THREE.Mesh(geomTail, new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
-    this.parts.tail.position.set(-3.5, 0, 0);
-    this.uavGroup.add(this.parts.tail);
+    // V-Tail
+    const geomVtail = new THREE.BoxGeometry(1.2, 0.1, 4);
+    const tail1 = new THREE.Mesh(geomVtail, new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+    tail1.position.set(-4.0, 0.8, -1.2);
+    tail1.rotation.x = Math.PI/4;
+    this.uavGroup.add(tail1);
 
-    const geomVtail = new THREE.BoxGeometry(1.0, 2.0, 0.1);
-    this.parts.vtail = new THREE.Mesh(geomVtail, new THREE.MeshStandardMaterial({ color: 0x64748b }));
-    this.parts.vtail.position.set(-3.5, 1.0, 0);
-    this.uavGroup.add(this.parts.vtail);
+    const tail2 = new THREE.Mesh(geomVtail, new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+    tail2.position.set(-4.0, 0.8, 1.2);
+    tail2.rotation.x = -Math.PI/4;
+    this.uavGroup.add(tail2);
 
-    this.parts.prop = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.8, 0.2), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
-    this.parts.prop.position.set(4.1, 0, 0);
+    // Ventral Fin (under tail)
+    const geomVentral = new THREE.BoxGeometry(1.0, 1.5, 0.1);
+    const ventral = new THREE.Mesh(geomVentral, new THREE.MeshStandardMaterial({ color: 0x64748b }));
+    ventral.position.set(-4.0, -0.8, 0);
+    this.uavGroup.add(ventral);
+
+    // Pusher Propeller (at rear)
+    this.parts.prop = new THREE.Group();
+    const propHub = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.4, 16), new THREE.MeshStandardMaterial({ color: 0x475569 }));
+    propHub.rotateZ(Math.PI/2);
+    this.parts.prop.add(propHub);
+    const propBladeGeom = new THREE.BoxGeometry(0.05, 3.2, 0.2);
+    const blade1 = new THREE.Mesh(propBladeGeom, new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+    const blade2 = new THREE.Mesh(propBladeGeom, new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+    blade2.rotation.x = Math.PI/2;
+    this.parts.prop.add(blade1);
+    this.parts.prop.add(blade2);
+    this.parts.prop.position.set(-5.1, 0, 0);
     this.uavGroup.add(this.parts.prop);
     
+    // Payloads
+    const geomPod = new THREE.CylinderGeometry(0.2, 0.2, 2.5, 16);
+    geomPod.rotateZ(Math.PI/2);
+    const pod1 = new THREE.Mesh(geomPod, new THREE.MeshStandardMaterial({ color: 0x64748b }));
+    pod1.position.set(1.0, -0.4, 4.0);
+    this.uavGroup.add(pod1);
+    const pod2 = new THREE.Mesh(geomPod, new THREE.MeshStandardMaterial({ color: 0x64748b }));
+    pod2.position.set(1.0, -0.4, -4.0);
+    this.uavGroup.add(pod2);
+
     this.scene.add(this.uavGroup);
 
     this.propSpeed = 0.5;
     this.targetPitch = 0;
     this.targetRoll = 0;
+    this.terrainSpeed = 0.5;
 
     window.addEventListener('resize', () => this.onResize());
     this.animate();
   }
-  updateState(sensor, pred) {
+  
+  updateState(sensor, pred, env) {
     if (!sensor) return;
     this.propSpeed = (sensor.rpm || 0) * 0.001;
-    // Pitch up if climbing
+    this.terrainSpeed = (sensor.airspeed_kts || 0) * 0.005;
+    
     if (sensor.phase === 'CLIMB') this.targetPitch = 0.15;
     else if (sensor.phase === 'DESCENT') this.targetPitch = -0.1;
     else this.targetPitch = 0;
-    // Roll slightly based on wind/vibration
+    
     this.targetRoll = (Math.random() - 0.5) * (sensor.vib_rms * 0.05 || 0.01);
+    
+    // Environment Visuals
+    let skyColor = 0x87CEEB, groundColor = 0x4d7c0f;
+    if (env === 'HOT_DESERT_48C') { skyColor = 0xedc9af; groundColor = 0xd2b48c; }
+    else if (env === 'HIGH_ALTITUDE_25K') { skyColor = 0x0f172a; groundColor = 0x1e293b; }
+    else if (env === 'COLD_ARCTIC') { skyColor = 0xe2e8f0; groundColor = 0xf8fafc; }
+    else if (env === 'TROPICAL_MARITIME') { skyColor = 0x38bdf8; groundColor = 0x0284c7; }
+    
+    this.scene.background.setHex(skyColor);
+    this.scene.fog.color.setHex(skyColor);
+    this.groundMat.color.setHex(groundColor);
   }
+  
   animate() {
     requestAnimationFrame(() => this.animate());
     if (this.parts.prop) this.parts.prop.rotation.x += this.propSpeed;
     
-    // Smooth transition for pitch and roll
     this.uavGroup.rotation.z += (this.targetPitch - this.uavGroup.rotation.z) * 0.05;
     this.uavGroup.rotation.x += (this.targetRoll - this.uavGroup.rotation.x) * 0.1;
-    
-    // Simulate slight bobbing
     this.uavGroup.position.y = Math.sin(Date.now() * 0.002) * 0.3;
+
+    // Scrolling Terrain
+    if (this.ground) {
+      this.ground.position.x -= this.terrainSpeed;
+      if (this.ground.position.x < -50) this.ground.position.x = 0;
+    }
 
     if (this.controls) this.controls.update();
     this.renderer.render(this.scene, this.camera);
@@ -765,7 +837,8 @@ async function pollSimulation() {
     if (predFaultEl) predFaultEl.style.color = p.fault_class === 'NOMINAL' ? '#059669' : '#dc2626';
 
     // Update 3D Simulator & HUD
-    if (fsTwin) fsTwin.updateState(s, p);
+    const env = document.getElementById('sim-env-select')?.value || 'STANDARD_ISA';
+    if (fsTwin) fsTwin.updateState(s, p, env);
     set('fs-alt', Math.round(s.altitude_ft || 0).toLocaleString() + ' ft');
     set('fs-ias', Math.round(s.airspeed_kts || 0) + ' kt');
     set('fs-ehi', (p.ehi || 100).toFixed(1) + '%');
