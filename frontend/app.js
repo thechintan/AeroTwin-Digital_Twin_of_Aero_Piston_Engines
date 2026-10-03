@@ -3,7 +3,7 @@
    Complete Frontend Application (3D Twin + Charts + Simulation + ML)
 ══════════════════════════════════════════════════════════════════════════ */
 
-const API = 'http://localhost:3001/api';
+const API = '/api';
 const state = {
   currentPage: 'overview',
   simRunning: false,
