@@ -20,12 +20,7 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="error-log" style="position:fixed; top:0; left:0; z-index:9999; background:red; color:white; padding:10px;"></div>
-  <script>
-    window.addEventListener('error', function(e) {
-      document.getElementById('error-log').innerHTML += '<br>' + e.message + ' at ' + e.filename + ':' + e.lineno;
-    });
-  </script>
+  <!-- Error log removed for production -->
 
   <!-- ════════ SIDEBAR ════════ -->
   <aside class="sidebar" id="sidebar">
@@ -36,31 +31,38 @@
 
     <nav class="sidebar-nav">
       <button class="nav-item active" data-page="overview" onclick="switchPage('overview')">
-        <i data-lucide="layout-dashboard" class="nav-icon"></i><span class="nav-label">Overview</span>
-      </button>
-      <button class="nav-item" data-page="twin" onclick="switchPage('twin')">
-        <i data-lucide="plane" class="nav-icon"></i><span class="nav-label">3D Digital Twin</span>
+        <i data-lucide="layout-dashboard" class="nav-icon"></i><span class="nav-label">Home</span>
       </button>
       <button class="nav-item" data-page="telemetry" onclick="switchPage('telemetry')">
-        <i data-lucide="radio" class="nav-icon"></i><span class="nav-label">Live Telemetry</span>
+        <i data-lucide="activity" class="nav-icon"></i><span class="nav-label">Live Monitoring</span>
       </button>
       <button class="nav-item" data-page="simulation" onclick="switchPage('simulation')">
-        <i data-lucide="flask-conical" class="nav-icon"></i><span class="nav-label">Mission Simulation</span>
-      </button>
-      <button class="nav-item" data-page="analytics" onclick="switchPage('analytics')">
-        <i data-lucide="bot" class="nav-icon"></i><span class="nav-label">ML Analytics</span>
+        <i data-lucide="play-circle" class="nav-icon"></i><span class="nav-label">Mission Simulation</span>
       </button>
       <button class="nav-item" data-page="alerts" onclick="switchPage('alerts')">
-        <i data-lucide="bell" class="nav-icon"></i><span class="nav-label">Fault Alerts</span>
+        <i data-lucide="wrench" class="nav-icon"></i><span class="nav-label">Maintenance Advisor</span>
+      </button>
+      <button class="nav-item" data-page="health" onclick="switchPage('health')">
+        <i data-lucide="heart-pulse" class="nav-icon"></i><span class="nav-label">Engine Health</span>
+      </button>
+      <button class="nav-item" data-page="twin" onclick="switchPage('twin')">
+        <i data-lucide="cpu" class="nav-icon"></i><span class="nav-label">Digital Twin</span>
+      </button>
+      <button class="nav-item" data-page="settings" onclick="switchPage('settings')">
+        <i data-lucide="settings" class="nav-icon"></i><span class="nav-label">Settings</span>
       </button>
     </nav>
 
     <div class="sidebar-footer">
-      <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Theme">
+      <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Theme" style="margin-bottom:10px;">
         <i data-lucide="moon" id="theme-icon"></i>
         <span id="theme-label">Dark Mode</span>
       </button>
-      <div class="sidebar-meta">
+      <button class="theme-toggle-btn" onclick="downloadReport()" title="Download Detailed AI Report" style="background-color: var(--primary); color: #fff; border: none;">
+        <i data-lucide="download"></i>
+        <span>Download Report</span>
+      </button>
+      <div class="sidebar-meta" style="margin-top: 15px;">
         <span class="meta-label">MISSION</span>
         <span class="meta-val mono" id="sb-mission">MALE-ISR-2026-09</span>
         <span class="meta-label">TAIL</span>
@@ -133,7 +135,6 @@
         <div class="kpi-card">
           <div class="kpi-head">
             <span class="kpi-label">Engine Health Index (EHI)</span>
-            <span class="kpi-tag green">PHYSICS + ML</span>
           </div>
           <div class="kpi-body">
             <div class="kpi-big-number green-text" id="kpi-ehi-val">96.5<span class="kpi-unit">%</span></div>
@@ -146,7 +147,6 @@
         <div class="kpi-card">
           <div class="kpi-head">
             <span class="kpi-label">Remaining Useful Life (RUL)</span>
-            <span class="kpi-tag blue">ML PREDICTED</span>
           </div>
           <div class="kpi-body">
             <div class="kpi-big-number blue-text" id="kpi-rul-val">1,420<span class="kpi-unit">hrs</span></div>
@@ -159,7 +159,6 @@
         <div class="kpi-card">
           <div class="kpi-head">
             <span class="kpi-label">Fault Classification</span>
-            <span class="kpi-tag green">RandomForest</span>
           </div>
           <div class="kpi-body">
             <div class="kpi-big-number green-text" id="kpi-fault-class">NOMINAL</div>
@@ -172,7 +171,6 @@
         <div class="kpi-card">
           <div class="kpi-head">
             <span class="kpi-label">Anomaly Detection</span>
-            <span class="kpi-tag blue">IsolationForest</span>
           </div>
           <div class="kpi-body">
             <div class="kpi-big-number green-text" id="kpi-anomaly">NORMAL</div>
@@ -342,31 +340,16 @@
       </div>
 
       <div class="sim-controls-grid">
-        <div class="sim-control-card">
-          <h3 class="card-title">Environment Preset</h3>
-          <select class="sim-select" id="sim-env-select">
-            <option value="STANDARD_ISA">Standard ISA (15°C SL)</option>
-            <option value="HOT_DESERT_48C">Hot Desert (48°C)</option>
-            <option value="HIGH_ALTITUDE_25K">High Altitude (25,000 ft)</option>
-            <option value="COLD_ARCTIC">Cold Arctic (-25°C)</option>
-            <option value="TROPICAL_MARITIME">Tropical Maritime (37°C)</option>
-          </select>
-        </div>
-        <div class="sim-control-card">
-          <h3 class="card-title">Fault Injection</h3>
-          <select class="sim-select" id="sim-fault-select">
-            <option value="NOMINAL">NOMINAL (No Fault)</option>
-            <option value="CYLINDER_MISFIRE">Cylinder Misfire</option>
-            <option value="INJECTOR_CLOGGING">Injector Clogging</option>
-            <option value="COOLING_DEGRADATION">Cooling Degradation</option>
-            <option value="LUBRICATION_FAILURE">Lubrication Failure</option>
-            <option value="SENSOR_DRIFT">Sensor Drift</option>
-            <option value="COMBUSTION_INSTABILITY">Combustion Instability</option>
-          </select>
-        </div>
-        <div class="sim-control-card sim-actions">
-          <button class="btn btn-primary btn-lg" id="sim-start-btn" onclick="startSimulation()"><i data-lucide="play" style="width:16px;height:16px;"></i> Start Mission</button>
-          <button class="btn btn-ghost btn-lg" id="sim-stop-btn" onclick="stopSimulation()"><i data-lucide="square" style="width:16px;height:16px;"></i> Stop</button>
+        <div class="sim-control-card" style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <h3 class="card-title">Live Telemetry Link</h3>
+            <p style="color:var(--text-sub); font-size:13px; margin:4px 0 0 0;">Connects to the UAV CAN-bus node to stream raw sensor data. The AI autonomously detects environments and classifies faults.</p>
+          </div>
+          <div class="sim-actions" style="margin: 0; display: flex; gap: 10px;">
+            <button class="btn btn-primary btn-lg" id="sim-start-btn" onclick="startSimulation()"><i data-lucide="play" style="width:16px;height:16px;"></i> Connect & Stream Data</button>
+            <button class="btn btn-ghost btn-lg" id="sim-stop-btn" onclick="stopSimulation()"><i data-lucide="square" style="width:16px;height:16px;"></i> Stop</button>
+            <button class="btn btn-primary btn-lg" style="background-color:#8b5cf6;" onclick="explainClimate()"><i data-lucide="sparkles" style="width:16px;height:16px;"></i> Climate XAI</button>
+          </div>
         </div>
       </div>
 
@@ -447,7 +430,7 @@
       </div>
     </div>
 
-    <!-- ═══════════════════ PAGE: ML ANALYTICS ═══════════════════ -->
+    <!-- ═══════════════════ PAGE: ML ANALYTICS (COMMENTED OUT) ═══════════════════ 
     <div class="page" id="page-analytics">
       <div class="page-header">
         <div>
@@ -486,6 +469,32 @@
             <h3 class="chart-title">Confusion Matrix (7-Class Fault Classifier)</h3>
           </div>
           <div class="confusion-matrix-wrap" id="confusion-matrix"></div>
+        </div>
+      </div>
+    </div>
+    -->
+
+    <!-- ═══════════════════ PAGE: ENGINE HEALTH ═══════════════════ -->
+    <div class="page" id="page-health">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Engine Health & Prognostics</h1>
+          <p class="page-sub">Real-time health index, degradation tracking, and remaining useful life estimation</p>
+        </div>
+      </div>
+      <div class="ml-kpi-row">
+        <div class="ml-kpi"><span class="ml-kpi-label">Health Index (EHI)</span><span class="ml-kpi-val mono" id="health-ehi" style="font-size:1.8rem; margin-top:8px;">--%</span></div>
+        <div class="ml-kpi"><span class="ml-kpi-label">Remaining Life</span><span class="ml-kpi-val mono" id="health-rul" style="font-size:1.8rem; margin-top:8px;">-- hrs</span></div>
+        <div class="ml-kpi"><span class="ml-kpi-label">Degradation</span><span class="ml-kpi-val mono" id="health-deg" style="font-size:1.8rem; margin-top:8px;">--</span></div>
+        <div class="ml-kpi"><span class="ml-kpi-label">Anomaly</span><span class="ml-kpi-val mono" id="health-anomaly" style="font-size:1.8rem; margin-top:8px;">--</span></div>
+        <div class="ml-kpi" style="grid-column: span 2;"><span class="ml-kpi-label">Current Diagnosis</span><span class="ml-kpi-val mono" id="health-fault" style="font-size:1.4rem; margin-top:12px; color:var(--text-main);">--</span></div>
+      </div>
+      <div class="charts-row">
+        <div class="chart-card" style="flex:1;">
+          <div class="chart-header">
+            <h3 class="chart-title">Health Index & Degradation Trend</h3>
+          </div>
+          <div class="chart-wrap" style="height: 350px;"><canvas id="chart-health-trend"></canvas></div>
         </div>
       </div>
     </div>
@@ -535,9 +544,210 @@
           </div>
         </div>
       </div>
+      </div>
+    </div>
+    
+    <!-- ═══════════════════ PAGE: SETTINGS ═══════════════════ -->
+    <div class="page" id="page-settings">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Settings & Preferences</h1>
+          <p class="page-sub">Configure UI, alerts, and system behaviors.</p>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+        <!-- Left Column -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Appearance -->
+          <div class="sim-control-card">
+            <h3 class="card-title" style="border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:15px; font-size:0.8rem; letter-spacing:1px; text-transform:uppercase;">Appearance <span style="color:var(--text-muted);font-weight:400">THEME</span></h3>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Theme</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">Light for a lit room or a projector; dark for an operations desk.</span>
+              </div>
+              <div style="display:flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow:hidden;">
+                <button onclick="document.documentElement.setAttribute('data-theme', 'light'); localStorage.setItem('theme','light'); lucide.createIcons();" class="btn btn-ghost" style="border-radius:0; padding:6px 12px; font-size:0.75rem;"><i data-lucide="sun" style="width:14px;height:14px;"></i> LIGHT</button>
+                <button onclick="document.documentElement.setAttribute('data-theme', 'dark'); localStorage.setItem('theme','dark'); lucide.createIcons();" class="btn btn-ghost" style="border-radius:0; border-left:1px solid var(--border); padding:6px 12px; font-size:0.75rem;"><i data-lucide="moon" style="width:14px;height:14px;"></i> DARK</button>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Animation</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">Route transitions, the aircraft in the corner, chart tweens.</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked>
+                <span class="slider round"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Voice Alerts -->
+          <div class="sim-control-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:15px;">
+              <h3 class="card-title" style="margin:0; font-size:0.8rem; letter-spacing:1px; text-transform:uppercase;">Voice Alerts <span style="color:var(--text-muted);font-weight:400">AI-ASSISTED ANNOUNCEMENT</span></h3>
+              <span style="background: rgba(16,185,129,0.15); color: #10b981; font-size: 0.65rem; font-weight:700; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16,185,129,0.3);">AVAILABLE</span>
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Voice alerts</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">Speak warning and critical findings aloud.</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked id="set-voice-toggle">
+                <span class="slider round"></span>
+              </label>
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Volume</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">Applies to the announcement and the short tone before it.</span>
+              </div>
+              <div style="display:flex; align-items:center; gap: 10px;">
+                <input type="range" min="0" max="100" value="85" style="width:100px;">
+                <span style="font-weight:600; font-size:0.85rem; width:24px; text-align:right;">85</span>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Repeat critical alerts</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">Say a critical finding once more after 45 seconds if nobody has acknowledged it.</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox">
+                <span class="slider round"></span>
+              </label>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-input); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.9rem;">Test announcement</strong>
+                <span style="color:var(--text-sub); font-size:0.75rem;">Play a sample so the voice and volume can be checked before a sortie.</span>
+              </div>
+              <button class="btn btn-ghost" onclick="announceVoice('This is a test of the AeroTwin emergency voice alert system.')" style="border: 1px solid var(--border); font-size:0.75rem; padding: 4px 10px;"><i data-lucide="volume-2" style="width:14px;height:14px;"></i> TEST</button>
+            </div>
+          </div>
+          
+          <!-- Introduction Onboarding -->
+          <div class="sim-control-card">
+            <h3 class="card-title" style="border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:15px; font-size:0.8rem; letter-spacing:1px; text-transform:uppercase;">Introduction <span style="color:var(--text-muted);font-weight:400">ONBOARDING</span></h3>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Replay the introduction</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">The full first-entry sequence: the film, how the twin works, and the aircraft.</span>
+              </div>
+              <button class="btn btn-primary" style="background: rgba(59,130,246,0.1); color:#3b82f6; border:none; padding:4px 10px;"><i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> REPLAY</button>
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Aircraft overview</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">The interactive 3D airframe, on its own.</span>
+              </div>
+              <button class="btn btn-ghost" style="border: 1px solid var(--border); padding:4px 10px;"><i data-lucide="maximize" style="width:14px;height:14px;"></i> OPEN</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Alerts Notifications -->
+          <div class="sim-control-card">
+            <h3 class="card-title" style="border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:15px; font-size:0.8rem; letter-spacing:1px; text-transform:uppercase;">Alerts <span style="color:var(--text-muted);font-weight:400">NOTIFICATIONS</span></h3>
+            
+            <div style="display:flex; gap:12px; margin-bottom: 20px;">
+              <i data-lucide="bell" style="color:var(--text-muted); margin-top:2px; width:20px;"></i>
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Notifications</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">Raise a toast and a bell count when the detector flags a new deviation.</span>
+              </div>
+            </div>
+            
+            <div style="display:flex; gap:12px;">
+              <i data-lucide="volume-x" style="color:var(--text-muted); margin-top:2px; width:20px;"></i>
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Alert sound</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">A short tone with a critical alert only. Never on a warning, never on load.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Operating Mode -->
+          <div class="sim-control-card">
+            <h3 class="card-title" style="border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:15px; font-size:0.8rem; letter-spacing:1px; text-transform:uppercase;">Operating Mode <span style="color:var(--text-muted);font-weight:400">DATA SOURCE</span></h3>
+            
+            <div style="display:flex; gap:12px; margin-bottom: 15px;">
+              <i data-lucide="wifi-off" style="color:var(--text-muted); margin-top:2px; width:20px;"></i>
+              <div>
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Offline</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem; line-height:1.4; display:block; margin-bottom:6px;">No ground station is answering. The console is running the local mode DEMO.</span>
+                <span style="color:var(--text-sub); font-size:0.75rem;">Local voice alerts available. Speech does not depend on the ground station.</span>
+              </div>
+            </div>
+            
+            <div style="display:flex; gap:12px; padding-top: 15px; border-top: 1px dashed var(--border);">
+              <i data-lucide="radio" style="color:var(--text-muted); margin-top:2px; width:20px;"></i>
+              <div style="flex:1;">
+                <strong style="display:block; margin-bottom:4px; font-size:0.95rem;">Datalink</strong>
+                <span style="color:var(--text-sub); font-size:0.8rem;">Drop the link to see how the console behaves when the aircraft stops answering.</span>
+                
+                <div style="margin-top:15px; background:var(--bg-input); padding:10px 15px; border-left: 2px solid var(--primary); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;">
+                  <span style="color:var(--text-sub); font-size:0.75rem;">The datalink control needs a ground station to talk to. Start the backend daemon.</span>
+                  <div style="margin-top:10px; font-size:0.75rem; font-family:var(--font-mono); color:var(--text-main); display:grid; grid-template-columns: 80px 1fr; gap:6px;">
+                    <span style="color:var(--text-muted);">SYSTEM</span><span>CONNECTING...</span>
+                    <span style="color:var(--text-muted);">TWIN</span><span>—</span>
+                    <span style="color:var(--text-muted);">SOURCE</span><span>LOCAL MODEL</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Floating Chat Widget -->
+    <div id="chat-widget" class="chat-widget">
+      <div class="chat-header" onclick="toggleChat()">
+        <i data-lucide="bot"></i> AEROTWIN AI Assistant
+        <i data-lucide="chevron-down" id="chat-toggle-icon" style="margin-left:auto;"></i>
+      </div>
+      <div class="chat-body" id="chat-body" style="display:none;">
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-msg ai-msg">Hello! I am your AI assistant for the AEROTWIN Engine Digital Twin. How can I help you?</div>
+        </div>
+        <div class="chat-input-area">
+          <input type="text" id="chat-input" placeholder="Ask about engine status, faults, or climate..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+          <button class="btn btn-primary btn-sm" onclick="sendChatMessage()"><i data-lucide="send"></i></button>
+        </div>
+      </div>
     </div>
 
   </main>
+
+  <!-- Report Modal Overlay -->
+  <div id="report-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-body); z-index:9999; overflow-y:auto; padding: 40px; box-sizing:border-box;">
+    <div style="max-width: 800px; margin: 0 auto; background:var(--bg-card); border: 1px solid var(--border); padding: 40px; border-radius: var(--radius); box-shadow: var(--shadow-lg);">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid var(--border); padding-bottom: 20px; margin-bottom: 20px;">
+        <h2 style="font-size:1.5rem;">AeroTwin Detailed AI Report</h2>
+        <button onclick="closeReport()" class="btn btn-ghost" style="padding: 5px 10px;"><i data-lucide="x" style="width:18px;height:18px;"></i> Close</button>
+      </div>
+      <div id="report-content" style="line-height:1.8; font-family: var(--font-mono); font-size: 0.95rem; white-space: pre-wrap;">
+        <!-- Filled by JS -->
+      </div>
+      <div style="margin-top: 30px; text-align: right; border-top: 1px solid var(--border); padding-top: 20px;">
+        <button class="btn btn-primary" onclick="confirmDownloadReport()" style="padding: 10px 20px;"><i data-lucide="download" style="width:16px;height:16px;"></i> Download as File</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
   <script>

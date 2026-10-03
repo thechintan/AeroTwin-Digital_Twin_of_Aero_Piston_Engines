@@ -194,6 +194,24 @@ class MaleUAVDigitalTwin {
     this.parts.tail_l = new THREE.Mesh(tailGeo, matAirframe); this.parts.tail_l.position.set(-1.2, -0.7, -4.2); this.parts.tail_l.rotation.z = 0.45; this.uavGroup.add(this.parts.tail_l);
     this.parts.tail_r = new THREE.Mesh(tailGeo, matAirframe); this.parts.tail_r.position.set(1.2, -0.7, -4.2); this.parts.tail_r.rotation.z = -0.45; this.uavGroup.add(this.parts.tail_r);
 
+    // LANDING GEAR (Chakka / Wheels)
+    const matTire = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+    const matStrut = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 });
+    const tireGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.25, 20); tireGeo.rotateZ(Math.PI/2);
+    const strutGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.8, 12);
+    
+    // Nose Gear
+    const noseStrut = new THREE.Mesh(strutGeo, matStrut); noseStrut.position.set(0, -1.2, 3.8); this.uavGroup.add(noseStrut);
+    this.parts.wheel_nose = new THREE.Mesh(tireGeo, matTire); this.parts.wheel_nose.position.set(0, -2.1, 3.8); this.uavGroup.add(this.parts.wheel_nose);
+    
+    // Main Gear Left
+    const mainStrutL = new THREE.Mesh(strutGeo, matStrut); mainStrutL.position.set(-1.5, -1.2, -0.5); mainStrutL.rotation.z = 0.2; this.uavGroup.add(mainStrutL);
+    this.parts.wheel_l = new THREE.Mesh(tireGeo, matTire); this.parts.wheel_l.position.set(-1.8, -2.1, -0.5); this.uavGroup.add(this.parts.wheel_l);
+    
+    // Main Gear Right
+    const mainStrutR = new THREE.Mesh(strutGeo, matStrut); mainStrutR.position.set(1.5, -1.2, -0.5); mainStrutR.rotation.z = -0.2; this.uavGroup.add(mainStrutR);
+    this.parts.wheel_r = new THREE.Mesh(tireGeo, matTire); this.parts.wheel_r.position.set(1.8, -2.1, -0.5); this.uavGroup.add(this.parts.wheel_r);
+
     this.rootGroup.add(this.uavGroup);
 
     // ENGINE
@@ -283,6 +301,8 @@ class MaleUAVDigitalTwin {
 
   updateFromTelemetry(s, p) {
     if (!s || !p) return;
+    this.latestRpm = s.rpm || 0;
+    this.latestVib = s.vib_rms || 0;
     const f = p.fault_class || 'NOMINAL';
     if (this.viewMode !== 'thermal') {
       [this.parts.cyl_1, this.parts.cyl_2, this.parts.cyl_3, this.parts.cyl_4].forEach(c => c.material.color.setHex(0x1e293b));
@@ -308,7 +328,12 @@ class MaleUAVDigitalTwin {
       iso: { pos: [11,7,13], target: [0,0,0] }, top: { pos: [0,20,0.001], target: [0,0,0] },
       bottom: { pos: [0,-18,0.001], target: [0,0,0] }, front: { pos: [0,0.6,14], target: [0,0.2,0] },
       rear: { pos: [0,1.2,-14], target: [0,0.2,-1.5] }, left: { pos: [-18,1.2,0], target: [0,0,0] },
-      right: { pos: [18,1.2,0], target: [0,0,0] }, engine: { pos: [3.4,2.4,-2.2], target: [0,0.2,-2.5] }
+      right: { pos: [18,1.2,0], target: [0,0,0] }, engine: { pos: [3.4,2.4,-2.2], target: [0,0.2,-2.5] },
+      'cyl_head_2': { pos: [3.0, 1.2, -1.0], target: [1.4, 0.15, -2.5] },
+      'crank_bearings': { pos: [0, -2.5, -0.5], target: [0, 0.1, -2.5] },
+      'injector_rail': { pos: [-3.0, 1.5, -1.5], target: [-1.4, 0.7, -2.2] },
+      'turbocharger': { pos: [0, -1.8, -5.0], target: [0, -0.6, -3.3] },
+      'cooling_jacket': { pos: [0, 2.8, -5.0], target: [0, 0.8, -3.2] }
     };
     const dest = targets[preset] || targets.iso;
     const sP = this.camera.position.clone(), eP = new THREE.Vector3(...dest.pos);
@@ -334,17 +359,53 @@ class MaleUAVDigitalTwin {
   animate() {
     requestAnimationFrame(() => this.animate());
     const t = Date.now() * 0.001;
-    if (this.parts.propBladesGroup) this.parts.propBladesGroup.rotation.z += 0.38;
+    
+    // Dynamic Propeller mapping (RPM 0 -> 0 rot, RPM 3000 -> fast rot)
+    const rpmVal = this.latestRpm || 0;
+    const propSpeed = rpmVal > 100 ? (rpmVal / 2000) * 0.5 : 0.05; // Fallback so it doesn't look dead
+    if (this.parts.propBladesGroup) this.parts.propBladesGroup.rotation.z -= propSpeed;
+    
+    // Spin the wheels (chakka) continuously for dynamic UI look
+    if (this.parts.wheel_nose) {
+       const wheelSpeed = propSpeed * 0.4;
+       this.parts.wheel_nose.rotation.x -= wheelSpeed;
+       this.parts.wheel_l.rotation.x -= wheelSpeed;
+       this.parts.wheel_r.rotation.x -= wheelSpeed;
+    }
+    
+    // Physical Engine Vibration based on telemetry vib_rms
+    const vib = this.latestVib || 0;
+    if (this.engineGroup) {
+      if (vib > 1.0) {
+        const intensity = (vib - 1.0) * 0.05;
+        this.engineGroup.position.set(
+          (Math.random()-0.5)*intensity,
+          0.1 + (Math.random()-0.5)*intensity,
+          -2.5 + (Math.random()-0.5)*intensity
+        );
+      } else {
+        this.engineGroup.position.set(0, 0.1, -2.5); // Reset to stable
+      }
+    }
+
     if (this.particles) {
       const arr = this.particles.geometry.attributes.position.array;
       for (let i = 0; i < arr.length; i += 3) { arr[i+2] -= 0.22; if (arr[i+2] < -8) arr[i+2] = 8; }
       this.particles.geometry.attributes.position.needsUpdate = true;
     }
     Object.values(this.hotspots).forEach(({ ring }) => { const s = 1.0 + Math.sin(t*5)*0.2; ring.scale.set(s,s,s); });
+    
+    // Exploded View logic
     if (this.exploded && this.parts.cyl_1) {
-      this.parts.cyl_1.position.x = -2.2; this.parts.cyl_2.position.x = 2.2; this.parts.cyl_3.position.x = -2.2; this.parts.cyl_4.position.x = 2.2;
+      this.parts.cyl_1.position.x = -2.5; this.parts.cyl_2.position.x = 2.5; 
+      this.parts.cyl_3.position.x = -2.5; this.parts.cyl_4.position.x = 2.5;
+      this.parts.cyl_1.position.y = 1.0; this.parts.cyl_2.position.y = 1.0;
+      this.parts.cyl_3.position.y = -1.0; this.parts.cyl_4.position.y = -1.0;
     } else if (this.parts.cyl_1) {
-      this.parts.cyl_1.position.x = -1.4; this.parts.cyl_2.position.x = 1.4; this.parts.cyl_3.position.x = -1.4; this.parts.cyl_4.position.x = 1.4;
+      this.parts.cyl_1.position.x = -1.4; this.parts.cyl_2.position.x = 1.4; 
+      this.parts.cyl_3.position.x = -1.4; this.parts.cyl_4.position.x = 1.4;
+      this.parts.cyl_1.position.y = 0.15; this.parts.cyl_2.position.y = 0.15;
+      this.parts.cyl_3.position.y = -0.15; this.parts.cyl_4.position.y = -0.15;
     }
     if (this.controls) this.controls.update();
     this.renderer.render(this.scene, this.camera);
@@ -608,12 +669,29 @@ function toggleHeroOrbit() {
 function resetHeroCamera() { if (heroTwin) heroTwin.setCameraAngle('iso'); }
 
 function setStudioView(m) {
-  document.querySelectorAll('.viewport-toolbar .btn-group:first-child button').forEach(b => b.classList.remove('active'));
-  document.getElementById(`studio-btn-${m}`)?.classList.add('active');
+  document.querySelectorAll('#page-twin .btn-group button').forEach(b => {
+    if(b.id !== 'studio-btn-explode' && !b.id.includes('pins') && !b.id.includes('orbit')) b.classList.remove('active', 'btn-primary');
+    if(b.id !== 'studio-btn-explode' && !b.id.includes('pins') && !b.id.includes('orbit')) b.classList.add('btn-ghost');
+  });
+  const btn = document.getElementById(`studio-btn-${m}`);
+  if(btn) { btn.classList.add('active', 'btn-primary'); btn.classList.remove('btn-ghost'); }
   if (studioTwin) studioTwin.setMode(m);
 }
+
+function toggleExplodedEngine() {
+  const btn = document.getElementById('studio-btn-explode');
+  if (studioTwin) {
+    studioTwin.exploded = !studioTwin.exploded;
+    if (studioTwin.exploded) {
+      btn.classList.add('active', 'btn-primary');
+      btn.classList.remove('btn-ghost');
+    } else {
+      btn.classList.remove('active', 'btn-primary');
+      btn.classList.add('btn-ghost');
+    }
+  }
+}
 function setStudioCameraAngle(a) { if (studioTwin) studioTwin.setCameraAngle(a); }
-function toggleExplodedEngine() { if (!studioTwin) return; studioTwin.exploded = !studioTwin.exploded; document.getElementById('studio-btn-explode')?.classList.toggle('active', studioTwin.exploded); }
 function toggleStudioPins() { if (!studioTwin) return; studioTwin.hotspotGroup.visible = !studioTwin.hotspotGroup.visible; const b = document.getElementById('studio-btn-pins'); if (b) b.textContent = `CAN Nodes: ${studioTwin.hotspotGroup.visible ? 'ON' : 'OFF'}`; }
 function toggleStudioOrbit() {
   if (!studioTwin) return;
@@ -626,7 +704,35 @@ function resetStudioCamera() { if (studioTwin) studioTwin.setCameraAngle('iso');
 function focusComponent(id) {
   state.activeComponent = id;
   document.querySelectorAll('.insp-item').forEach(el => el.classList.remove('active'));
-  event?.target?.closest?.('.insp-item')?.classList.add('active');
+  if (event && event.target) {
+    const item = event.target.closest('.insp-item');
+    if (item) item.classList.add('active');
+  }
+
+  // 1. Move camera to the component
+  if (studioTwin) studioTwin.setCameraAngle(id);
+  
+  // 2. Update the Detail Pane
+  const titles = {
+    'cyl_head_2': 'Cylinder #2 & Spark Lead (CAN 0x284)',
+    'crank_bearings': 'Crankshaft & Main Journal (CAN 0x1A2)',
+    'injector_rail': 'Fuel Injector Rail (CAN 0x33F)',
+    'turbocharger': 'Turbocharger & Wastegate (CAN 0x4B1)',
+    'cooling_jacket': 'Liquid Cooling Radiator (CAN 0x5C0)'
+  };
+  
+  const bodies = {
+    'cyl_head_2': '<div class="detail-row"><span>CAN ID</span><span class="mono">0x284 (FADEC_CYL2)</span></div><div class="detail-row"><span>Sample Rate</span><span class="mono">100 Hz</span></div><div class="detail-row"><span>Status</span><strong class="green-text">NOMINAL</strong></div>',
+    'crank_bearings': '<div class="detail-row"><span>CAN ID</span><span class="mono">0x1A2 (FADEC_CRANK)</span></div><div class="detail-row"><span>Sample Rate</span><span class="mono">200 Hz</span></div><div class="detail-row"><span>Status</span><strong class="green-text">NOMINAL</strong></div>',
+    'injector_rail': '<div class="detail-row"><span>CAN ID</span><span class="mono">0x33F (FADEC_INJ)</span></div><div class="detail-row"><span>Sample Rate</span><span class="mono">50 Hz</span></div><div class="detail-row"><span>Status</span><strong class="green-text">NOMINAL</strong></div>',
+    'turbocharger': '<div class="detail-row"><span>CAN ID</span><span class="mono">0x4B1 (FADEC_BOOST)</span></div><div class="detail-row"><span>Sample Rate</span><span class="mono">50 Hz</span></div><div class="detail-row"><span>Status</span><strong class="green-text">NOMINAL</strong></div>',
+    'cooling_jacket': '<div class="detail-row"><span>CAN ID</span><span class="mono">0x5C0 (FADEC_COOL)</span></div><div class="detail-row"><span>Sample Rate</span><span class="mono">10 Hz</span></div><div class="detail-row"><span>Status</span><strong class="green-text">NOMINAL</strong></div>'
+  };
+  
+  const tEl = document.getElementById('insp-detail-title');
+  const bEl = document.getElementById('insp-detail-body');
+  if (tEl && titles[id]) tEl.textContent = titles[id];
+  if (bEl && bodies[id]) bEl.innerHTML = bodies[id] + '<div class="detail-row"><span>Last Updated</span><span class="mono">Live</span></div>';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -722,6 +828,26 @@ function initCharts() {
       }, options: { ...baseOpts('Sim Timeline'), animation: false }
     });
   }
+
+  // Health Trend Chart
+  const htCtx = document.getElementById('chart-health-trend');
+  if (htCtx) {
+    state.charts.healthTrend = new Chart(htCtx, {
+      type: 'line', data: {
+        labels: [], datasets: [
+          { label: 'Health Index (EHI)', data: [], borderColor: '#10b981', borderWidth: 2, pointRadius: 0, yAxisID: 'y' },
+          { label: 'Degradation', data: [], borderColor: '#ef4444', borderWidth: 2, pointRadius: 0, yAxisID: 'y1' }
+        ]
+      }, options: {
+        ...baseOpts('EHI & Degradation'), animation: false,
+        scales: {
+          x: { ticks: { color: cc.txt, maxTicksLimit: 8 }, grid: { color: cc.grid } },
+          y: { type: 'linear', position: 'left', min: 0, max: 100, ticks: { color: cc.txt }, grid: { color: cc.grid } },
+          y1: { type: 'linear', position: 'right', min: 0, max: 1, ticks: { color: cc.txt }, grid: { display: false } }
+        }
+      }
+    });
+  }
 }
 
 function pushChartData(chart, label, values, maxLen = 50) {
@@ -795,7 +921,9 @@ async function fetchAndUpdateTelemetry() {
       // Update overview KPIs
       if (data.prediction) {
         updateOverviewKPIs(data.sensor, data.prediction);
+        updateHealthPage(data.sensor, data.prediction, ts);
         if (heroTwin) heroTwin.updateFromTelemetry(data.sensor, data.prediction);
+        if (studioTwin) studioTwin.updateFromTelemetry(data.sensor, data.prediction);
       }
     }
   } catch (e) { /* silent */ }
@@ -823,12 +951,39 @@ function updateOverviewKPIs(sensor, pred) {
   }
 }
 
+function updateHealthPage(sensor, pred, ts) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('health-ehi', (pred.ehi || 100).toFixed(1) + '%');
+  set('health-rul', Math.round(pred.rul_hours || 1200).toLocaleString() + ' hrs');
+  set('health-deg', ((pred.degradation || 0) * 100).toFixed(2) + '%');
+  set('health-anomaly', pred.is_anomaly ? 'DETECTED' : 'NORMAL');
+  set('health-fault', pred.fault_class || 'NOMINAL');
+
+  const ehiEl = document.getElementById('health-ehi');
+  if (ehiEl) ehiEl.style.color = (pred.ehi || 100) > 85 ? '#10b981' : ((pred.ehi || 100) > 60 ? '#f59e0b' : '#ef4444');
+  const anEl = document.getElementById('health-anomaly');
+  if (anEl) { anEl.style.color = pred.is_anomaly ? '#ef4444' : '#10b981'; }
+
+  if (state.charts.healthTrend && ts) {
+    pushChartData(state.charts.healthTrend, ts, [pred.ehi || 100, pred.degradation || 0]);
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════
 // SIMULATION
 // ══════════════════════════════════════════════════════════════════
+
 async function startSimulation() {
-  const env = document.getElementById('sim-env-select')?.value || 'STANDARD_ISA';
-  const fault = document.getElementById('sim-fault-select')?.value || 'NOMINAL';
+  const envs = ['STANDARD_ISA', 'HOT_DESERT_48C', 'HIGH_ALTITUDE_25K', 'COLD_ARCTIC', 'TROPICAL_MARITIME'];
+  const faults = ['NOMINAL', 'CYLINDER_MISFIRE', 'INJECTOR_CLOGGING', 'COOLING_DEGRADATION', 'LUBRICATION_FAILURE', 'SENSOR_DRIFT', 'COMBUSTION_INSTABILITY'];
+  
+  // 30% chance of Nominal, 70% chance of a random fault
+  let fault = 'NOMINAL';
+  if (Math.random() > 0.3) {
+    fault = faults[Math.floor(Math.random() * (faults.length - 1)) + 1];
+  }
+  const env = envs[Math.floor(Math.random() * envs.length)];
+  
   try {
     await fetch(`${API}/simulation/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -839,6 +994,23 @@ async function startSimulation() {
     document.getElementById('sim-status-val').style.color = '#059669';
     document.getElementById('sim-env-val').textContent = env;
     document.getElementById('sim-fault-val').textContent = fault;
+    
+    // UI Button Updates
+    const startBtn = document.getElementById('sim-start-btn');
+    if (startBtn) {
+      startBtn.style.opacity = '0.7';
+      startBtn.style.pointerEvents = 'none';
+      startBtn.innerHTML = '<i data-lucide="loader" class="spin-icon" style="width:16px;height:16px;"></i> Live Processing...';
+    }
+    const stopBtn = document.getElementById('sim-stop-btn');
+    if (stopBtn) {
+      stopBtn.classList.remove('btn-ghost');
+      stopBtn.classList.add('btn-primary');
+      stopBtn.style.backgroundColor = '#dc2626'; // Red active stop button
+      stopBtn.style.color = '#ffffff';
+    }
+    if (window.lucide) lucide.createIcons();
+
     addAlert('success', 'Mission Simulation Started', `Environment: ${env} · Fault: ${fault}`);
     
     state.lastPhase = null;
@@ -857,6 +1029,23 @@ async function stopSimulation() {
     if (state.simPollInterval) { clearInterval(state.simPollInterval); state.simPollInterval = null; }
     document.getElementById('sim-status-val').textContent = 'STOPPED';
     document.getElementById('sim-status-val').style.color = '#dc2626';
+    
+    // UI Button Updates Restore
+    const startBtn = document.getElementById('sim-start-btn');
+    if (startBtn) {
+      startBtn.style.opacity = '1';
+      startBtn.style.pointerEvents = 'auto';
+      startBtn.innerHTML = '<i data-lucide="play" style="width:16px;height:16px;"></i> Start Mission';
+    }
+    const stopBtn = document.getElementById('sim-stop-btn');
+    if (stopBtn) {
+      stopBtn.classList.add('btn-ghost');
+      stopBtn.classList.remove('btn-primary');
+      stopBtn.style.backgroundColor = '';
+      stopBtn.style.color = '';
+    }
+    if (window.lucide) lucide.createIcons();
+
     addAlert('info', 'Mission Simulation Stopped', 'All telemetry streaming paused.');
     announceVoice('Mission simulation stopped.');
   } catch (e) { /* */ }
@@ -938,8 +1127,9 @@ async function pollSimulation() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// ML ANALYTICS
+// ML ANALYTICS (COMMENTED OUT)
 // ══════════════════════════════════════════════════════════════════
+/*
 async function loadMLMetrics() {
   try {
     const res = await fetch(`${API}/ml/metrics`);
@@ -1030,6 +1220,7 @@ function buildConfusionMatrix(cm, classes) {
   }
   wrap.innerHTML = html;
 }
+*/
 
 // ══════════════════════════════════════════════════════════════════
 // ALERTS
@@ -1069,7 +1260,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCharts();
   buildTelemetryGrid();
   startTelemetryPolling();
-  loadMLMetrics();
+  // loadMLMetrics();
 
   // Start simulation auto so overview has live data
   fetch(`${API}/simulation/start`, {
@@ -1077,3 +1268,131 @@ document.addEventListener('DOMContentLoaded', () => {
     body: JSON.stringify({ env_preset: 'STANDARD_ISA', fault_type: 'NOMINAL' })
   }).catch(() => {});
 });
+
+// ══════════════════════════════════════════════════════════════════
+// CHATBOT & EXPLAINABLE AI
+// ══════════════════════════════════════════════════════════════════
+let chatOpen = false;
+function toggleChat() {
+  chatOpen = !chatOpen;
+  const body = document.getElementById('chat-body');
+  const icon = document.getElementById('chat-toggle-icon');
+  if (chatOpen) {
+    body.style.display = 'flex';
+    icon.setAttribute('data-lucide', 'chevron-up');
+  } else {
+    body.style.display = 'none';
+    icon.setAttribute('data-lucide', 'chevron-down');
+  }
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function appendChatMessage(msg, sender) {
+  const msgs = document.getElementById('chat-messages');
+  const el = document.createElement('div');
+  el.className = `chat-msg ${sender === 'user' ? 'user-msg' : 'ai-msg'}`;
+  el.textContent = msg;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  
+  appendChatMessage(msg, 'user');
+  input.value = '';
+  
+  const env = document.getElementById('sim-env-select')?.options[document.getElementById('sim-env-select').selectedIndex]?.text || 'Standard ISA';
+  const ehi = document.getElementById('health-ehi')?.textContent || '100%';
+  const rul = document.getElementById('health-rul')?.textContent || 'N/A';
+  const fault = document.getElementById('health-fault')?.textContent || 'NOMINAL';
+  
+  const prompt = `You are the AEROTWIN AI Assistant, an expert aerospace engineer and diagnostician specialized in MALE UAV (Medium-Altitude Long-Endurance) propulsion systems and aero piston engines.
+
+CRITICAL RULES:
+1. STRICT DOMAIN: ONLY answer questions related to aerospace, UAVs, engine telemetry, predictive maintenance, aerodynamics, or climate impacts on flight.
+2. OUT-OF-DOMAIN: If the user asks something unrelated (e.g., general knowledge, coding, recipes), you MUST politely refuse and state you only answer UAV/Engine queries.
+3. CONCISENESS: Provide precise, directly relevant answers without unnecessary fluff.
+
+CURRENT ENGINE TELEMETRY:
+- Environment: ${env}
+- Engine Health (EHI): ${ehi}
+- Remaining Useful Life: ${rul}
+- Current Diagnosis: ${fault}
+
+User Query: "${msg}"`;
+  
+  appendChatMessage("Thinking...", 'ai');
+  const msgs = document.getElementById('chat-messages');
+  const thinkingEl = msgs.lastChild;
+  
+  try {
+    const res = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    thinkingEl.textContent = data.response || "No response received.";
+  } catch (e) {
+    thinkingEl.textContent = "Error connecting to AI backend.";
+  }
+}
+
+function explainClimate() {
+  if (!chatOpen) toggleChat();
+  const env = document.getElementById('sim-env-select')?.options[document.getElementById('sim-env-select').selectedIndex]?.text || 'Standard ISA';
+  const msg = `Explainable AI Request: Explain the aerodynamic and engine performance impact of running an aero piston engine in the ${env} environment on UAV flight.`;
+  const input = document.getElementById('chat-input');
+  input.value = msg;
+  sendChatMessage();
+}
+
+function downloadReport() {
+  const env = document.getElementById('sim-env-val')?.textContent || 'Standard ISA';
+  const fault = document.getElementById('kpi-fault-class')?.textContent || 'NOMINAL';
+  const ehi = document.getElementById('kpi-ehi-val')?.textContent || '96.5%';
+  const rul = document.getElementById('kpi-rul-val')?.textContent || '1,420 hrs';
+  
+  const content = `AEROTWIN DETAILED AI PROPULSION REPORT\n======================================\n\n` +
+    `DATE: ${new Date().toLocaleString()}\n` +
+    `MISSION: MALE-ISR-2026-09\n` +
+    `TAIL: UAV-MALE-04\n\n` +
+    `--- REAL-TIME AI PREDICTIONS ---\n` +
+    `Engine Health Index (EHI)  : ${ehi}\n` +
+    `Remaining Useful Life (RUL): ${rul}\n` +
+    `Current Fault Status       : ${fault}\n` +
+    `Environmental Condition    : ${env}\n\n` +
+    `--- SENSOR TELEMETRY SNAPSHOT ---\n` +
+    `RPM             : ${document.getElementById('hud-rpm')?.textContent || '4600'}\n` +
+    `Manifold Press  : ${document.getElementById('hud-map')?.textContent || '26.5 inHg'}\n` +
+    `Avg CHT         : ${document.getElementById('hud-cht')?.textContent || '195.0 °F'}\n` +
+    `Oil Pressure    : ${document.getElementById('hud-oil-p')?.textContent || '58.0 PSI'}\n\n` +
+    `======================================\n` +
+    `Report generated successfully by AeroTwin Intelligence.`;
+    
+  document.getElementById('report-content').textContent = content;
+  document.getElementById('report-modal').style.display = 'block';
+  window.lastReportContent = content; // store for download
+}
+
+function closeReport() {
+  document.getElementById('report-modal').style.display = 'none';
+}
+
+function confirmDownloadReport() {
+  const content = window.lastReportContent || "AEROTWIN DETAILED AI PROPULSION REPORT\nEmpty report.";
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `AeroTwin_Mission_Report_${new Date().getTime()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  closeReport();
+  addAlert('success', 'Report Downloaded', 'Detailed AI propulsion report has been saved to your device.');
+}

@@ -3,9 +3,10 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { spawn, exec } = require('child_process');
+require('dotenv').config();
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
@@ -277,6 +278,36 @@ app.get('/api/env-presets', (req, res) => {
 // Fault profiles list
 app.get('/api/fault-profiles', (req, res) => {
   res.json(Object.keys(FAULT_PROFILES));
+});
+
+// Chatbot & Explainable AI
+app.post('/api/chat', async (req, res) => {
+  const { prompt } = req.body;
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  try {
+    const payload = { contents: [{ parts: [{ text: prompt }] }] };
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await response.json();
+    if (data.candidates && data.candidates.length > 0) {
+      return res.json({ response: data.candidates[0].content.parts[0].text });
+    }
+    
+    if (data.error) {
+       console.error("LLM API Error:", data.error);
+       return res.json({ response: "API Error: " + (data.error.message || JSON.stringify(data.error)) });
+    }
+    
+    res.json({ response: "Could not generate a response." });
+  } catch (error) {
+    console.error("Chat error:", error);
+    res.json({ response: "Error connecting to AI: " + error.message });
+  }
 });
 
 // Catch-all: serve frontend
